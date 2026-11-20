@@ -55,6 +55,8 @@ type Program struct {
 	// CredentialService selects the host's system keychain namespace. An
 	// empty value selects development files. Nil keeps the runner default.
 	CredentialService *string
+	// ApplicationID associates the child windows with the desktop host.
+	ApplicationID string
 }
 
 // EnvLegacyCacheDir names the optional old cache directory passed to the runner.
@@ -62,6 +64,9 @@ const EnvLegacyCacheDir = "WAYGU_PLATFORM_LEGACY_CACHE_DIR"
 
 // EnvCredentialService names the optional credential service passed to the runner.
 const EnvCredentialService = "WAYGU_PLATFORM_CREDENTIAL_SERVICE"
+
+// EnvApplicationID is supplied by the plugin launcher.
+const EnvApplicationID = "WAYGU_PLATFORM_APPLICATION_ID"
 
 type Process struct {
 	client     *plugin.Client
@@ -93,6 +98,9 @@ func Start(ctx context.Context, program Program, offer Offer, host func(string) 
 	}
 	if program.CredentialService != nil {
 		cmd.Env = append(cmd.Env, EnvCredentialService+"="+*program.CredentialService)
+	}
+	if program.ApplicationID != "" {
+		cmd.Env = append(cmd.Env, EnvApplicationID+"="+program.ApplicationID)
 	}
 	config := &plugin.ClientConfig{
 		HandshakeConfig:  handshake,

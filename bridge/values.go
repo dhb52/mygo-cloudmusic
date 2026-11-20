@@ -19,6 +19,7 @@ type PluginPrepare struct {
 	Settings   json.RawMessage
 	Tray       bool
 	Appearance string
+	WindowIcon []byte
 }
 
 type PluginAction = protocol.PluginAction

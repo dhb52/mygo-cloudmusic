@@ -3,6 +3,7 @@ module github.com/waygu-music-plugin/sdk
 go 1.27.3
 
 require (
+	github.com/ebitengine/purego v0.11.1
 	github.com/egoist/mygo v0.10.0
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.8.0
@@ -11,7 +12,6 @@ require (
 )
 
 require (
-	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect

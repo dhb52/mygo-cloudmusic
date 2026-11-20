@@ -82,6 +82,20 @@ func (s *pluginClientServices) send(in bridge.PluginHostCall) {
 	}
 }
 
+// PluginEntrySwitcher is an optional service for packages that provide more than one connection type.
+type PluginEntrySwitcher interface {
+	CanSwitchPluginEntry() bool
+	SwitchPluginEntry(string)
+}
+
+func (s *pluginClientServices) CanSwitchPluginEntry() bool { return s.child.entrySwitch }
+
+func (s *pluginClientServices) SwitchPluginEntry(id string) {
+	if s.child.entrySwitch {
+		s.send(bridge.PluginHostCall{Action: "plugin-entry", Text: id})
+	}
+}
+
 func (s *pluginClientServices) action(name string) { s.send(bridge.PluginHostCall{Action: name}) }
 
 func (s *pluginClientServices) Post(fn func()) {

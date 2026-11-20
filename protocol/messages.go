@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	CapabilityPluginEntries       = "plugin-entries"
 	WindowToggleDesktopLyrics     = "lyrics-toggle"
 	WindowToggleDesktopLyricsLock = "lyrics-lock"
 	HostSaveDesktopLyrics         = "desktop-lyrics-save"
@@ -17,6 +18,7 @@ type PluginPrepare struct {
 	Settings   json.RawMessage
 	Tray       bool
 	Appearance string
+	WindowIcon []byte
 }
 
 type PluginAction struct {

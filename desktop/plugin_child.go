@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"time"
 
@@ -40,6 +41,7 @@ type pluginChild struct {
 	windows         map[pluginapi.WindowID]pluginapi.Window
 	menu            func() *mygo.Menu
 	main            *mygo.Window
+	windowIcon      []byte
 	aux             map[pluginapi.WindowID]*mygo.Window
 	service         *pluginClientServices
 	ctx             context.Context
@@ -49,6 +51,7 @@ type pluginChild struct {
 	tray            bool
 	connection      string
 	mediaRenewal    bool
+	entrySwitch     bool
 	media           bridge.MediaSlots
 	initialDeadline *time.Timer
 }
@@ -78,6 +81,14 @@ func RunPlatformPackage(id string, entries []pluginapi.Registration) error {
 	}
 	if service, ok := os.LookupEnv(platformrpc.EnvCredentialService); ok {
 		storage.UseCredentialService(service)
+	}
+	if identity := os.Getenv(platformrpc.EnvApplicationID); identity != "" {
+		if err := SetApplicationIdentity(identity); err != nil {
+			return err
+		}
+		if runtime.GOOS == "darwin" {
+			mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
+		}
 	}
 	child := &pluginChild{packageID: id, entries: entries, stateDir: dir}
 	child.initialDeadline = time.AfterFunc(15*time.Second, func() { os.Exit(1) })
@@ -136,6 +147,7 @@ func (p *pluginChild) Hello(req platformrpc.HelloRequest, out *platformrpc.Hello
 	mygo.RunOnMain(func() {
 		p.entry, p.connection = entry, req.Connection
 		p.mediaRenewal = slices.Contains(req.Host.Provides, protocol.CapabilityMediaRenewal)
+		p.entrySwitch = slices.Contains(req.Host.Provides, protocol.CapabilityPluginEntries)
 		p.media = bridge.NewMediaSlots()
 	})
 	*out = platformrpc.HelloReply{Identity: identity, Plugin: childOffer}
@@ -187,7 +199,17 @@ func (p *pluginChild) Prepare(in protocol.PluginPrepare, out *bridge.PluginPrepa
 			}
 		}
 		mygo.App.SetWindowStateStore(pluginWindowStateStore{dir: p.stateDir, entry: p.entry.ID, keys: keys})
+		p.windowIcon = in.WindowIcon
 		p.main = p.window(pluginapi.MainWindow, true)
+		reportVisibility := func() {
+			if p.active && runtime.GOOS == "darwin" {
+				p.service.send(bridge.PluginHostCall{Action: "window-visibility", Flag: p.main.IsVisible() || p.main.IsMinimized()})
+			}
+		}
+		p.main.OnShow(reportVisibility)
+		p.main.OnHide(reportVisibility)
+		p.main.OnMinimize(reportVisibility)
+		p.main.OnRestore(reportVisibility)
 		p.service.window.Store(p.main)
 		p.main.OnFocus(func() {
 			if p.active && p.life.MainFocused != nil {
@@ -267,7 +289,15 @@ func (p *pluginChild) Window(in bridge.PluginAction, out *bridge.PluginActionRep
 }
 
 func (p *pluginChild) window(id pluginapi.WindowID, hidden bool) *mygo.Window {
-	return mygo.NewWindow(p.windowOptions(id, hidden))
+	options := p.windowOptions(id, true)
+	win := mygo.NewWindow(options)
+	if len(p.windowIcon) != 0 {
+		_ = win.SetIcon(p.windowIcon)
+	}
+	if !hidden {
+		win.Show()
+	}
+	return win
 }
 
 func (p *pluginChild) windowOptions(id pluginapi.WindowID, hidden bool) mygo.WindowOptions {

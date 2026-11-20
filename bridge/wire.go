@@ -204,7 +204,7 @@ func LocalSnapshot(s protocol.PluginSnapshot) PluginSnapshot {
 }
 
 func (in PluginPrepare) Wire() protocol.PluginPrepare {
-	return protocol.PluginPrepare{Scope: in.Scope, Facade: WireSnapshot(in.Facade), Settings: in.Settings, Tray: in.Tray, Appearance: in.Appearance}
+	return protocol.PluginPrepare{Scope: in.Scope, Facade: WireSnapshot(in.Facade), Settings: in.Settings, Tray: in.Tray, Appearance: in.Appearance, WindowIcon: in.WindowIcon}
 }
 
 func (in PluginCall) Wire() protocol.PluginCall {
