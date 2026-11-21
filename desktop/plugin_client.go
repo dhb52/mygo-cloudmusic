@@ -175,7 +175,10 @@ func (s *pluginClientServices) ToggleDesktopLyrics() {
 
 func (s *pluginClientServices) DesktopLyricsLocked() bool { return s.lyrics.State().Locked }
 func (s *pluginClientServices) DesktopLyricsState() pluginapi.DesktopLyricsState {
-	return s.lyrics.State()
+	state := s.lyrics.State()
+	state.CustomColor = s.state.Desktop.DesktopLyricsColor
+	state.FontFamily = s.state.Desktop.LyricsFontFamily
+	return state
 }
 func (s *pluginClientServices) ToggleDesktopLyricsLock() {
 	s.lyrics.ToggleLock()
@@ -232,6 +235,36 @@ func (s *pluginClientServices) ApplyDesktopPreferences(p pluginapi.DesktopPrefer
 		s.send(bridge.PluginHostCall{Action: protocol.HostPatchDesktopPreferences, DesktopPatch: patch})
 	}
 }
+func (s *pluginClientServices) SetDesktopLyricsColor(color string) {
+	if s.state.Desktop.DesktopLyricsColorAvailable {
+		s.send(bridge.PluginHostCall{Action: protocol.HostSetDesktopLyricsColor, Text: color})
+	}
+}
+
+func (s *pluginClientServices) SetStatusLyrics(enabled bool) {
+	if s.state.Desktop.StatusLyricsAvailable {
+		s.send(bridge.PluginHostCall{Action: protocol.HostSetStatusLyrics, Flag: enabled})
+	}
+}
+
+func (s *pluginClientServices) SetTaskbarLyricsFontSize(size int) {
+	if s.state.Desktop.TaskbarLyricsFontSize != 0 {
+		s.send(bridge.PluginHostCall{Action: protocol.HostSetTaskbarLyricsFontSize, Index: size})
+	}
+}
+
+func (s *pluginClientServices) SetTaskbarLyricsFontFamily(family string) {
+	if s.state.Desktop.TaskbarLyricsFontSize != 0 {
+		s.send(bridge.PluginHostCall{Action: protocol.HostSetTaskbarLyricsFontFamily, Text: family})
+	}
+}
+
+func (s *pluginClientServices) SetLyricsFontFamily(family string) {
+	if s.state.Desktop.LyricsFontAvailable {
+		s.send(bridge.PluginHostCall{Action: protocol.HostSetLyricsFontFamily, Text: family})
+	}
+}
+
 func (s *pluginClientServices) ClearAudioCache() { s.action("clear-cache") }
 func (s *pluginClientServices) DecoderStatus() pluginapi.DecoderStatus {
 	return s.state.Decoder

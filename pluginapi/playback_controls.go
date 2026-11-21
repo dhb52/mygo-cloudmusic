@@ -71,6 +71,8 @@ type DesktopLyricsState struct {
 	Locked, PointerInside, ShowTranslation bool
 	FontSize                               float32
 	Color                                  int
+	CustomColor                            string
+	FontFamily                             string
 }
 
 type CastingDevice struct {

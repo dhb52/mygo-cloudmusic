@@ -26,14 +26,22 @@ type DesktopPreferences struct {
 }
 
 type DesktopSettings struct {
-	Preferences     DesktopPreferences
-	CacheUsed       int64
-	NotchAvailable  bool
-	Updates         bool
-	UpdateChecks    bool
-	UpdateDownloads bool
-	LastUpdateCheck time.Time
-	CacheTask       DesktopTask
+	DesktopLyricsColorAvailable bool
+	DesktopLyricsColor          string
+	StatusLyricsAvailable       bool
+	StatusLyricsEnabled         bool
+	TaskbarLyricsFontSize       int // Zero when the system bar uses its own font size.
+	TaskbarLyricsFontFamily     string
+	LyricsFontAvailable         bool
+	LyricsFontFamily            string
+	Preferences                 DesktopPreferences
+	CacheUsed                   int64
+	NotchAvailable              bool
+	Updates                     bool
+	UpdateChecks                bool
+	UpdateDownloads             bool
+	LastUpdateCheck             time.Time
+	CacheTask                   DesktopTask
 }
 
 type AudioDevice struct {
@@ -70,6 +78,30 @@ type DesktopServices interface {
 	SetUpdateChecks(bool)
 	SetUpdateDownloads(bool)
 	CheckForUpdates()
+}
+
+// LyricsSettingsServices is optional. The availability fields in DesktopSettings
+// advertise which controls the current host supports.
+type LyricsSettingsServices interface {
+	SetDesktopLyricsColor(string)
+	SetStatusLyrics(bool)
+}
+
+const (
+	TaskbarLyricsMinFontSize     = 12
+	TaskbarLyricsMaxFontSize     = 20
+	TaskbarLyricsDefaultFontSize = 15
+)
+
+// TaskbarLyricsFontServices is optional for hosts with a resizable lyric font.
+type TaskbarLyricsFontServices interface {
+	SetTaskbarLyricsFontSize(int)
+	SetTaskbarLyricsFontFamily(string)
+}
+
+// LyricsFontServices is optional for hosts with a shared lyric font setting.
+type LyricsFontServices interface {
+	SetLyricsFontFamily(string)
 }
 
 // DesktopLyricsPreferences are the desktop lyric window's persistent choices.

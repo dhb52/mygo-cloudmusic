@@ -90,6 +90,14 @@ type DesktopPreferences struct {
 }
 
 type DesktopSettings struct {
+	DesktopLyricsColorAvailable   bool
+	DesktopLyricsColor            string
+	StatusLyricsAvailable         bool
+	StatusLyricsEnabled           bool
+	TaskbarLyricsFontSize         int32
+	TaskbarLyricsFontFamily       string
+	LyricsFontAvailable           bool
+	LyricsFontFamily              string
 	Preferences                   DesktopPreferences
 	CacheUsed                     int64
 	NotchAvailable, Updates       bool

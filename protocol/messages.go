@@ -6,10 +6,15 @@ import (
 )
 
 const (
-	CapabilityPluginEntries       = "plugin-entries"
-	WindowToggleDesktopLyrics     = "lyrics-toggle"
-	WindowToggleDesktopLyricsLock = "lyrics-lock"
-	HostSaveDesktopLyrics         = "desktop-lyrics-save"
+	CapabilityPluginEntries        = "plugin-entries"
+	WindowToggleDesktopLyrics      = "lyrics-toggle"
+	WindowToggleDesktopLyricsLock  = "lyrics-lock"
+	HostSaveDesktopLyrics          = "desktop-lyrics-save"
+	HostSetDesktopLyricsColor      = "desktop-lyrics-color"
+	HostSetStatusLyrics            = "status-lyrics-enabled"
+	HostSetTaskbarLyricsFontSize   = "taskbar-lyrics-font-size"
+	HostSetTaskbarLyricsFontFamily = "taskbar-lyrics-font-family"
+	HostSetLyricsFontFamily        = "lyrics-font-family"
 )
 
 type PluginPrepare struct {
