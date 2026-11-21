@@ -891,9 +891,6 @@ func (h *Home) sidebar(c *ui.Context) {
 		}
 		h.sidebarPlaylists(c)
 	})
-	if tr := h.currentTrack(); tr != nil {
-		h.sidebarNowPlaying(c, tr)
-	}
 	profile := h.state.Profile()
 	name, status, avatar := "登录 QQ 音乐", "未登录", ""
 	if profile != nil {
