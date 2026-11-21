@@ -21,6 +21,11 @@ func Start(start pluginapi.Startup) pluginapi.Adapter {
 		Activate: func(ctx context.Context, _ pluginapi.PlaybackContinuity) {
 			adapter.home.activate(ctx)
 		},
+		Ready: func(event pluginapi.Activation) {
+			if event.Main != nil {
+				adapter.home.fullscreen.bind(event.Main, adapter.home.host.Invalidate)
+			}
+		},
 		Deactivate: func(bool) { adapter.home.CloseTransient() },
 	})
 	start.RegisterWindow(pluginapi.MainWindow, pluginapi.Window{
