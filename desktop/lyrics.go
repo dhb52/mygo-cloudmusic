@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -13,6 +14,7 @@ type LyricsWindow struct {
 	native                      *mygo.Window
 	prefs                       pluginapi.DesktopLyricsPreferences
 	pointerInside, ignoresMouse bool
+	nativeHover                 bool
 	positionDirty               bool
 	poll, saveMove              *time.Timer
 	offDisplays                 func()
@@ -20,15 +22,25 @@ type LyricsWindow struct {
 }
 
 func (w *LyricsWindow) Configure(prefs pluginapi.DesktopLyricsPreferences, save func(pluginapi.DesktopLyricsPreferences)) {
-	w.prefs, w.save = prefs, save
+	w.save = save
+	w.SetPreferences(prefs)
 }
 
-func (w *LyricsWindow) SetPreferences(prefs pluginapi.DesktopLyricsPreferences) { w.prefs = prefs }
+func (w *LyricsWindow) SetPreferences(prefs pluginapi.DesktopLyricsPreferences) {
+	lockChanged := w.prefs.Locked != prefs.Locked
+	w.prefs = prefs
+	if runtime.GOOS == "linux" && lockChanged && w.native != nil {
+		w.updateInput()
+		w.trackPointer()
+		w.Invalidate()
+	}
+}
 
 func (w *LyricsWindow) IsOpen() bool { return w.native != nil }
 
 func (w *LyricsWindow) Open(options mygo.WindowOptions, quitting func() bool) {
 	options.Hidden = true
+	configureLyricsWindow(&options)
 	d := desktopLyricsDisplayArea(mygo.Screen.PrimaryDisplay())
 	options.X, options.Y = desktopLyricsDefaultPosition(d, options.Width, options.Height)
 	var positionChanged bool
@@ -46,8 +58,13 @@ func (w *LyricsWindow) Open(options mygo.WindowOptions, quitting func() bool) {
 	// Drop the Acrylic backdrop immediately, keeping the composed surface so
 	// transparent pixels reveal the desktop instead of a grey material.
 	win.SetVibrancy(mygo.VibrancyNone)
-	win.SetIgnoreMouseEvents(true)
-	w.ignoresMouse = true
+	w.ignoresMouse = runtime.GOOS != "linux" || w.prefs.Locked
+	win.SetIgnoreMouseEvents(w.ignoresMouse)
+	w.nativeHover = setupLyricsWindow(win, func(inside bool) {
+		if w.native == win && win.IsVisible() && !w.prefs.Locked {
+			w.setPointerInside(inside)
+		}
+	})
 	win.SetVisibleOnAllWorkspaces(true)
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if !quitting() {
@@ -94,7 +111,7 @@ func (w *LyricsWindow) Destroy() {
 	if w.Visible() || w.saveMove != nil {
 		w.FlushPosition()
 	}
-	w.native, w.pointerInside = nil, false
+	w.native, w.pointerInside, w.nativeHover = nil, false, false
 	stopDesktopLyricsTimer(&w.poll)
 	w.offDisplays()
 	w.offDisplays = nil
@@ -215,7 +232,15 @@ func (w *LyricsWindow) Toggle() {
 	if w.prefs.PositionSet {
 		w.native.SetPosition(w.prefs.X, w.prefs.Y)
 	}
+	if runtime.GOOS == "linux" {
+		w.updateInput()
+	}
 	w.native.ShowInactive()
+	if runtime.GOOS == "linux" {
+		// X11 window managers can discard the old state when the panel is
+		// unmapped. Request keep-above again with the window now mapped.
+		w.native.SetAlwaysOnTop(true)
+	}
 	w.native.SetVisibleOnAllWorkspaces(true)
 	w.updateInput()
 	w.trackPointer()
@@ -226,6 +251,9 @@ func (w *LyricsWindow) ToggleLock() {
 	w.prefs.Locked = !w.prefs.Locked
 	w.savePrefs()
 	w.updateInput()
+	if runtime.GOOS == "linux" {
+		w.trackPointer()
+	}
 	w.Invalidate()
 }
 
@@ -268,8 +296,13 @@ func (w *LyricsWindow) savePrefs() {
 	w.save(w.prefs)
 }
 
-// Native pointer events cannot wake a click-through window.
+// Poll only when a visible window needs a pointer position the native hover
+// events cannot supply. Locked Linux windows never need pointer polling.
 func (w *LyricsWindow) trackPointer() {
+	if !w.Visible() || w.nativeHover || (runtime.GOOS == "linux" && w.prefs.Locked) {
+		stopDesktopLyricsTimer(&w.poll)
+		return
+	}
 	setDesktopLyricsTimer(&w.poll, 33*time.Millisecond, func() {
 		if w.Visible() {
 			w.updateInput()
@@ -300,18 +333,42 @@ func setDesktopLyricsTimer(slot **time.Timer, delay time.Duration, fn func()) {
 }
 
 func (w *LyricsWindow) updateInput() {
+	if w.native == nil {
+		return
+	}
+	if runtime.GOOS == "linux" {
+		// Input shape follows the lock even while hidden, so GTK can apply
+		// it as the surface is mapped again.
+		w.setIgnoresMouse(w.prefs.Locked)
+		if w.prefs.Locked {
+			w.setPointerInside(false)
+			return
+		}
+		if w.nativeHover {
+			return
+		}
+	}
 	if !w.Visible() {
 		return
 	}
 	b := w.native.Bounds()
 	p := mygo.Screen.CursorScreenPoint()
 	inside := p.X >= b.X && p.X < b.X+b.Width && p.Y >= b.Y && p.Y < b.Y+b.Height
+	w.setPointerInside(inside)
+	if runtime.GOOS != "linux" {
+		w.setIgnoresMouse(w.prefs.Locked || !inside)
+	}
+}
+
+func (w *LyricsWindow) setPointerInside(inside bool) {
 	if inside != w.pointerInside {
 		w.pointerInside = inside
 		w.Invalidate()
 	}
-	// A locked window is click-through even when the pointer is inside.
-	if ignore := w.prefs.Locked || !inside; ignore != w.ignoresMouse {
+}
+
+func (w *LyricsWindow) setIgnoresMouse(ignore bool) {
+	if ignore != w.ignoresMouse {
 		w.native.SetIgnoreMouseEvents(ignore)
 		w.ignoresMouse = ignore
 	}
