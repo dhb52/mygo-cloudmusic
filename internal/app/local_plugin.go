@@ -23,7 +23,7 @@ var hostOffer = platformrpc.Offer{
 	Provides: []string{
 		platformrpc.CapabilityPlayback, platformrpc.CapabilitySettings, platformrpc.CapabilityMediaStreams,
 		protocol.CapabilityPlaybackEvents, protocol.CapabilityDesktopLyrics, protocol.CapabilityDesktopTasks,
-		protocol.CapabilityDesktopPatches,
+		protocol.CapabilityDesktopPatches, protocol.CapabilityQuit,
 		protocol.CapabilityMediaRenewal, protocol.CapabilityPluginEntries,
 	},
 	Needs: []string{platformrpc.CapabilityWindow, platformrpc.CapabilityMedia, platformrpc.CapabilityMediaStreams},

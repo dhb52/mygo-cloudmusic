@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	"github.com/egoist/mygo"
 	"github.com/waygu-music-plugin/sdk/pluginapi"
 	"github.com/waygu-music-plugin/sdk/protocol"
 
@@ -175,6 +176,19 @@ func (h platformHost) Download(tracks []pluginapi.Track, level string) {
 	if err := h.a.startDownloads(tracks, level); err != nil {
 		h.Toast(err.Error())
 	}
+}
+
+// quitApp quits the application, which is what the host's own menu and tray
+// do; a plugin asks for it here, since it cannot quit another process.
+var quitApp = mygo.App.Quit
+
+// QuitApp quits the application, as the listener asked from a plugin's own
+// window, menu or tray.
+func (h platformHost) QuitApp() {
+	if !h.canWrite() {
+		return
+	}
+	quitApp()
 }
 
 // OpenDownloads shows the listener the host's download manager.

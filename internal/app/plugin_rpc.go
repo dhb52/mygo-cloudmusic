@@ -240,6 +240,8 @@ func (r pluginReverse) apply(in PluginHostCall, reply *PluginHostReply) error {
 		h.Download(in.Tracks, in.Level)
 	case protocol.HostCancelDownload:
 		h.CancelDownload(in.TaskID)
+	case protocol.HostQuit:
+		h.QuitApp()
 	case protocol.HostDownloadManager:
 		a.openDownloadManager()
 	case "equalizer":
