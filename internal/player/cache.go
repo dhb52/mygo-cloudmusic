@@ -48,11 +48,16 @@ type trackIdentity struct {
 }
 
 func identifyTrack(owner pluginapi.ID, t *pluginapi.Track) trackIdentity {
-	ref := t.Ref
-	if ref == "" {
-		ref = strconv.FormatInt(t.ID, 10)
+	return trackIdentity{platform: owner, ref: TrackRef(t)}
+}
+
+// TrackRef is how a song is named across a platform: its own reference,
+// where it has one, and its ID otherwise.
+func TrackRef(t *pluginapi.Track) string {
+	if t.Ref != "" {
+		return t.Ref
 	}
-	return trackIdentity{platform: owner, ref: ref}
+	return strconv.FormatInt(t.ID, 10)
 }
 
 type cacheTrack struct {
@@ -82,21 +87,46 @@ func keepable(level, ext string) bool {
 func (c *Cache) findLocked(track cacheTrack, level string) (string, *pluginapi.Stream) {
 	at := max(slices.Index(pluginapi.Levels, level), 0)
 	for _, lv := range pluginapi.Levels[at:] {
-		key := cacheKey(track, lv)
-		meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
-		if err != nil {
-			continue
-		}
-		var st pluginapi.Stream
-		if json.Unmarshal(meta, &st) != nil || !keepable(lv, st.Type) || st.Level != lv || st.Size <= 0 {
-			continue
-		}
-		path := filepath.Join(c.dir, key+"."+st.Type)
-		if fi, err := os.Stat(path); err == nil && fi.Size() == st.Size {
-			return path, &st
+		if path, st := c.findAtLocked(track, lv); path != "" {
+			return path, st
 		}
 	}
 	return "", nil
+}
+
+// findAtLocked finds a complete cached song of exactly this level.
+func (c *Cache) findAtLocked(track cacheTrack, level string) (string, *pluginapi.Stream) {
+	key := cacheKey(track, level)
+	meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
+	if err != nil {
+		return "", nil
+	}
+	var st pluginapi.Stream
+	if json.Unmarshal(meta, &st) != nil || !keepable(level, st.Type) || st.Level != level || st.Size <= 0 {
+		return "", nil
+	}
+	path := filepath.Join(c.dir, key+"."+st.Type)
+	if fi, err := os.Stat(path); err == nil && fi.Size() == st.Size {
+		return path, &st
+	}
+	return "", nil
+}
+
+// CachedPath returns where the song of exactly this level is kept already,
+// with what was kept of it, for a download to copy rather than fetch again.
+// A song of a higher level is not it: the file would be named for the level
+// asked for while holding another.
+func (c *Cache) CachedPath(owner pluginapi.ID, t *pluginapi.Track, level string) (string, *pluginapi.Stream, bool) {
+	if c == nil || t == nil {
+		return "", nil, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	path, st := c.findAtLocked(trackCacheRef(owner, t), level)
+	if path == "" {
+		return "", nil, false
+	}
+	return path, st, true
 }
 
 // filePath returns the cached song file used by MPV or DLNA.
