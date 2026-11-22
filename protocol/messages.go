@@ -15,6 +15,10 @@ const (
 	HostSetTaskbarLyricsFontSize   = "taskbar-lyrics-font-size"
 	HostSetTaskbarLyricsFontFamily = "taskbar-lyrics-font-family"
 	HostSetLyricsFontFamily        = "lyrics-font-family"
+	HostRequestDownloadOptions     = "download-options"
+	HostDownload                   = "download"
+	HostCancelDownload             = "download-cancel"
+	HostDownloadManager            = "download-manager"
 )
 
 type PluginPrepare struct {
@@ -122,6 +126,7 @@ type PluginHostCall struct {
 	Number        float64
 	Flag          bool
 	Text          string
+	Level         string
 	Feed          string
 	Session       *PlaybackSession
 	Settings      json.RawMessage

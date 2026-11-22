@@ -266,6 +266,7 @@ func (s *pluginClientServices) SetLyricsFontFamily(family string) {
 }
 
 func (s *pluginClientServices) ClearAudioCache() { s.action("clear-cache") }
+
 func (s *pluginClientServices) DecoderStatus() pluginapi.DecoderStatus {
 	return s.state.Decoder
 }
@@ -281,7 +282,22 @@ func (s *pluginClientServices) SetUpdateDownloads(on bool) {
 	s.send(bridge.PluginHostCall{Action: "update-download", Flag: on})
 }
 func (s *pluginClientServices) CheckForUpdates() { s.action("update-check") }
-func (s *pluginClientServices) Volume() float64  { return s.state.Volume }
+
+func (s *pluginClientServices) RequestDownloadOptions(track pluginapi.Track, token string) {
+	s.send(bridge.PluginHostCall{Action: protocol.HostRequestDownloadOptions, Tracks: []pluginapi.Track{track}, Text: token})
+}
+
+func (s *pluginClientServices) Download(tracks []pluginapi.Track, level string) {
+	s.send(bridge.PluginHostCall{Action: protocol.HostDownload, Tracks: tracks, Level: level})
+}
+
+func (s *pluginClientServices) CancelDownload(id uint64) {
+	s.send(bridge.PluginHostCall{Action: protocol.HostCancelDownload, TaskID: id})
+}
+
+func (s *pluginClientServices) OpenDownloads() { s.action(protocol.HostDownloadManager) }
+
+func (s *pluginClientServices) Volume() float64 { return s.state.Volume }
 func (s *pluginClientServices) SetVolume(n float64) {
 	s.state.Volume = n
 	s.send(bridge.PluginHostCall{Action: "volume", Number: n})

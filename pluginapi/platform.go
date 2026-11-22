@@ -61,6 +61,9 @@ type Services interface {
 	ShowMain()
 	OpenSettings()
 	CloseSettings()
+	// OpenDownloads shows the host's download manager: what is being
+	// fetched, what waits, and what the listener has already kept.
+	OpenDownloads()
 	Toast(string)
 	TakeToast() string
 	Player() PlayerPort

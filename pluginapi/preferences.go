@@ -23,6 +23,10 @@ type DesktopPreferences struct {
 	MPVExclusive   bool
 	MPVGapless     bool
 	MPVAudioDevice string
+
+	// DownloadDir is where downloads are written. Empty means the system
+	// download directory.
+	DownloadDir string
 }
 
 type DesktopSettings struct {
@@ -42,6 +46,16 @@ type DesktopSettings struct {
 	UpdateDownloads             bool
 	LastUpdateCheck             time.Time
 	CacheTask                   DesktopTask
+
+	// DownloadAvailable advertises a host that downloads songs. DownloadDir is
+	// the effective directory; Downloads and DownloadOptions are the latest
+	// state pushed for the settings window. DownloadOptionsToken matches a
+	// RequestDownloadOptions call with its results.
+	DownloadAvailable    bool
+	DownloadDir          string
+	Downloads            []DownloadItem
+	DownloadOptions      []DownloadOption
+	DownloadOptionsToken string
 }
 
 type AudioDevice struct {
@@ -78,6 +92,13 @@ type DesktopServices interface {
 	SetUpdateChecks(bool)
 	SetUpdateDownloads(bool)
 	CheckForUpdates()
+
+	// The download calls queue and return: probing a quality needs the
+	// network, so results arrive as DownloadOptions in a later snapshot, tagged
+	// with the token passed here. Download starts a batch one track at a time.
+	RequestDownloadOptions(track Track, token string)
+	Download(tracks []Track, level string)
+	CancelDownload(id uint64)
 }
 
 // LyricsSettingsServices is optional. The availability fields in DesktopSettings

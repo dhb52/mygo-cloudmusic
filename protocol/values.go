@@ -87,6 +87,7 @@ type DesktopPreferences struct {
 	Notch, NotchActivity, NotchVirtual, Smoke, Fog bool
 	UseMPV, MPVExclusive, MPVGapless               bool
 	MPVAudioDevice                                 string
+	DownloadDir                                    string
 }
 
 type DesktopSettings struct {
@@ -104,6 +105,32 @@ type DesktopSettings struct {
 	UpdateChecks, UpdateDownloads bool
 	LastUpdateCheck               time.Time
 	CacheTask                     DesktopTask
+	DownloadAvailable             bool
+	DownloadDir                   string
+	Downloads                     []DesktopDownloadItem
+	DownloadOptions               []DesktopDownloadOption
+	DownloadOptionsToken          string
+}
+
+type DesktopDownloadOption struct {
+	Level     string
+	Format    string
+	Size      int64
+	Available bool
+	Reason    string
+}
+
+type DesktopDownloadItem struct {
+	ID      uint64
+	Batch   uint64
+	Name    string
+	Ref     string
+	Level   string
+	Phase   TaskPhase
+	Done    int64
+	Total   int64
+	Path    string
+	Message string
 }
 
 type DesktopLyricsPreferences struct {

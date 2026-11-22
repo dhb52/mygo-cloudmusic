@@ -53,6 +53,22 @@ func localTrack(t protocol.Track) pluginapi.Track {
 	return out
 }
 
+// A download item carries the song's own reference across, which the
+// plugin asked with and matches on.
+func wireDownloadItem(v pluginapi.DownloadItem) protocol.DesktopDownloadItem {
+	return protocol.DesktopDownloadItem{
+		ID: v.ID, Batch: v.Batch, Name: v.Name, Ref: v.Ref, Level: v.Level, Phase: v.Phase,
+		Done: v.Done, Total: v.Total, Path: v.Path, Message: v.Message,
+	}
+}
+
+func localDownloadItem(v protocol.DesktopDownloadItem) pluginapi.DownloadItem {
+	return pluginapi.DownloadItem{
+		ID: v.ID, Batch: v.Batch, Name: v.Name, Ref: v.Ref, Level: v.Level, Phase: v.Phase,
+		Done: v.Done, Total: v.Total, Path: v.Path, Message: v.Message,
+	}
+}
+
 func wireSession(s *pluginapi.PlaybackSession) *protocol.PlaybackSession {
 	if s == nil {
 		return nil
@@ -78,6 +94,7 @@ func WireDesktopPreferences(p pluginapi.DesktopPreferences) protocol.DesktopPref
 		Appearance: p.Appearance, AppIcon: p.AppIcon, CacheMB: int64(p.CacheMB), Notch: p.Notch,
 		NotchActivity: p.NotchActivity, NotchVirtual: p.NotchVirtual, Smoke: p.Smoke, Fog: p.Fog,
 		UseMPV: p.UseMPV, MPVExclusive: p.MPVExclusive, MPVGapless: p.MPVGapless, MPVAudioDevice: p.MPVAudioDevice,
+		DownloadDir: p.DownloadDir,
 	}
 }
 
@@ -86,6 +103,7 @@ func LocalDesktopPreferences(p protocol.DesktopPreferences) pluginapi.DesktopPre
 		Appearance: p.Appearance, AppIcon: p.AppIcon, CacheMB: int(p.CacheMB), Notch: p.Notch,
 		NotchActivity: p.NotchActivity, NotchVirtual: p.NotchVirtual, Smoke: p.Smoke, Fog: p.Fog,
 		UseMPV: p.UseMPV, MPVExclusive: p.MPVExclusive, MPVGapless: p.MPVGapless, MPVAudioDevice: p.MPVAudioDevice,
+		DownloadDir: p.DownloadDir,
 	}
 }
 
@@ -146,6 +164,13 @@ func WireSnapshot(s PluginSnapshot) protocol.PluginSnapshot {
 			TaskbarLyricsFontFamily:     s.Desktop.TaskbarLyricsFontFamily,
 			LyricsFontAvailable:         s.Desktop.LyricsFontAvailable,
 			LyricsFontFamily:            s.Desktop.LyricsFontFamily,
+			DownloadAvailable:           s.Desktop.DownloadAvailable,
+			DownloadDir:                 s.Desktop.DownloadDir,
+			DownloadOptionsToken:        s.Desktop.DownloadOptionsToken,
+			Downloads:                   mapWireValues(s.Desktop.Downloads, wireDownloadItem),
+			DownloadOptions: mapWireValues(s.Desktop.DownloadOptions, func(v pluginapi.DownloadOption) protocol.DesktopDownloadOption {
+				return protocol.DesktopDownloadOption(v)
+			}),
 		},
 		Decoder: protocol.DecoderStatus{
 			Ready: s.Decoder.Ready, Downloaded: s.Decoder.Downloaded, Downloading: s.Decoder.Downloading,
@@ -194,6 +219,13 @@ func LocalSnapshot(s protocol.PluginSnapshot) PluginSnapshot {
 			TaskbarLyricsFontFamily:     s.Desktop.TaskbarLyricsFontFamily,
 			LyricsFontAvailable:         s.Desktop.LyricsFontAvailable,
 			LyricsFontFamily:            s.Desktop.LyricsFontFamily,
+			DownloadAvailable:           s.Desktop.DownloadAvailable,
+			DownloadDir:                 s.Desktop.DownloadDir,
+			DownloadOptionsToken:        s.Desktop.DownloadOptionsToken,
+			Downloads:                   mapWireValues(s.Desktop.Downloads, localDownloadItem),
+			DownloadOptions: mapWireValues(s.Desktop.DownloadOptions, func(v protocol.DesktopDownloadOption) pluginapi.DownloadOption {
+				return pluginapi.DownloadOption(v)
+			}),
 		},
 		Decoder: pluginapi.DecoderStatus{
 			Ready: s.Decoder.Ready, Downloaded: s.Decoder.Downloaded, Downloading: s.Decoder.Downloading,
@@ -249,7 +281,7 @@ func LocalMedia(r protocol.PluginMedia) PluginMedia {
 
 func (in PluginHostCall) Wire() protocol.PluginHostCall {
 	return protocol.PluginHostCall{Scope: in.Scope, Action: in.Action, Tracks: mapWireValues(in.Tracks, wireTrack),
-		Index: int64(in.Index), Position: in.Position, Number: in.Number, Flag: in.Flag, Text: in.Text, Feed: in.Feed,
+		Index: int64(in.Index), Position: in.Position, Number: in.Number, Flag: in.Flag, Text: in.Text, Level: in.Level, Feed: in.Feed,
 		Session: wireSession(in.Session), Settings: in.Settings, DeadlineNano: in.DeadlineNano,
 		QueueRevision: in.QueueRevision, Attempt: in.Attempt, HasRevision: in.HasRevision,
 		EQ: protocol.EQSettings(in.EQ), View: protocol.Presentation(in.View),
@@ -258,7 +290,7 @@ func (in PluginHostCall) Wire() protocol.PluginHostCall {
 
 func LocalHostCall(in protocol.PluginHostCall) PluginHostCall {
 	return PluginHostCall{Scope: in.Scope, Action: in.Action, Tracks: mapWireValues(in.Tracks, localTrack),
-		Index: int(in.Index), Position: in.Position, Number: in.Number, Flag: in.Flag, Text: in.Text, Feed: in.Feed,
+		Index: int(in.Index), Position: in.Position, Number: in.Number, Flag: in.Flag, Text: in.Text, Level: in.Level, Feed: in.Feed,
 		Session: localSession(in.Session), Settings: in.Settings, DeadlineNano: in.DeadlineNano,
 		QueueRevision: in.QueueRevision, Attempt: in.Attempt, HasRevision: in.HasRevision,
 		EQ: eq.Settings(in.EQ), View: pluginapi.Presentation(in.View),

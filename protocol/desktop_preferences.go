@@ -15,8 +15,9 @@ const (
 	PrefMPVExclusive
 	PrefMPVGapless
 	PrefMPVAudioDevice
+	PrefDownloadDir
 
-	allDesktopPreferences = (PrefMPVAudioDevice << 1) - 1
+	allDesktopPreferences = (PrefDownloadDir << 1) - 1
 )
 
 const HostPatchDesktopPreferences = "preferences-patch"
@@ -69,6 +70,9 @@ func (base DesktopPreferences) Changes(next DesktopPreferences) DesktopPreferenc
 	if base.MPVAudioDevice != next.MPVAudioDevice {
 		patch.Fields |= PrefMPVAudioDevice
 	}
+	if base.DownloadDir != next.DownloadDir {
+		patch.Fields |= PrefDownloadDir
+	}
 	return patch
 }
 
@@ -108,6 +112,9 @@ func (p DesktopPreferencePatch) ApplyTo(base DesktopPreferences) DesktopPreferen
 	}
 	if p.Fields&PrefMPVAudioDevice != 0 {
 		base.MPVAudioDevice = p.Values.MPVAudioDevice
+	}
+	if p.Fields&PrefDownloadDir != 0 {
+		base.DownloadDir = p.Values.DownloadDir
 	}
 	return base
 }

@@ -136,6 +136,11 @@ func (h *Host) SetUpdateChecks(enabled bool)    { h.Desktop.UpdateChecks = enabl
 func (h *Host) SetUpdateDownloads(enabled bool) { h.Desktop.UpdateDownloads = enabled }
 func (h *Host) CheckForUpdates()                { h.UpdateChecksRequested++ }
 
+func (*Host) RequestDownloadOptions(pluginapi.Track, string) {}
+func (*Host) Download([]pluginapi.Track, string)             {}
+func (*Host) CancelDownload(uint64)                          {}
+func (*Host) OpenDownloads()                                 {}
+
 func (h *Host) save() {
 	if h.Save != nil {
 		h.Save()

@@ -99,6 +99,7 @@ type PluginHostCall struct {
 	Number        float64
 	Flag          bool
 	Text          string
+	Level         string
 	Feed          string
 	Session       *pluginapi.PlaybackSession
 	Settings      json.RawMessage

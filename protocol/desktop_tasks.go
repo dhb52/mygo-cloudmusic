@@ -27,5 +27,6 @@ const (
 	TaskCacheClear      = "clear-cache"
 	TaskCastingScan     = "cast-scan"
 	TaskCastingOutput   = "cast-output"
+	TaskSongDownload    = "song-download"
 	HostDesktopTask     = "desktop-task"
 )
