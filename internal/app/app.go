@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 	"github.com/waygu-music-plugin/sdk/desktop"
 	appplatform "github.com/waygu-music-plugin/sdk/pluginapi"
 	"github.com/waygu-music-plugin/sdk/pluginapi/artwork"
@@ -21,6 +22,7 @@ import (
 // app owns the native windows and the services shared by platform plugins.
 type app struct {
 	win, settingsWin  *mygo.Window
+	downloadsWin      *mygo.Window
 	pluginsWin        *mygo.Window
 	desktopLyrics     desktop.LyricsWindow
 	tray              *mygo.Tray
@@ -30,6 +32,9 @@ type app struct {
 	toast             string
 	volume            float64
 	desktopTasks      desktopTasks
+	downloads         *downloads
+	downloadedList    []downloadRecord
+	downloadList      ui.ListState
 	mpvDone, mpvTotal int64
 	mpvCancel         context.CancelFunc
 	cacheMeasure      uint64
@@ -190,6 +195,9 @@ func run(registrations []appplatform.Registration, managed bool) error {
 		}
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
+		a.downloads = newDownloads()
+		a.loadDownloadRecords()
+		go a.serveDownloads()
 		// Load the selected platform before the first window frame.
 		if !a.initPlatformState() {
 			startupErr = errors.New("no platform plugin registered a main window")

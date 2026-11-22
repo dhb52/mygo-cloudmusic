@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+
 	"github.com/waygu-music-plugin/sdk/pluginapi"
 	"github.com/waygu-music-plugin/sdk/protocol"
 
@@ -16,6 +18,7 @@ func (h platformHost) DesktopSettings() pluginapi.DesktopSettings {
 			Smoke: s.Smoke, Fog: s.Fog,
 			UseMPV: s.UseMPV, MPVExclusive: s.MPVExclusive, MPVGapless: s.MPVGapless,
 			MPVAudioDevice: s.MPVAudioDevice,
+			DownloadDir:    s.DownloadDir,
 		},
 		CacheUsed:                   a.cacheUsed,
 		CacheTask:                   a.desktopTasks.latest[protocol.TaskCacheClear],
@@ -29,7 +32,13 @@ func (h platformHost) DesktopSettings() pluginapi.DesktopSettings {
 		TaskbarLyricsFontFamily:     s.LyricsFontFamily,
 		LyricsFontAvailable:         true,
 		LyricsFontFamily:            s.LyricsFontFamily,
+		DownloadAvailable:           true,
+		Downloads:                   a.downloads.snapshot(),
 	}
+	if dir, err := a.downloadDir(); err == nil {
+		state.DownloadDir = dir
+	}
+	state.DownloadOptions, state.DownloadOptionsToken = a.downloads.optionSnapshot()
 	if a.updates {
 		state.UpdateChecks, state.UpdateDownloads = updateChecks(), updateDownloads()
 		state.LastUpdateCheck = lastUpdateCheck()
@@ -112,6 +121,7 @@ func (a *app) applyDesktopPreferences(p pluginapi.DesktopPreferences) error {
 	s.Smoke, s.Fog = p.Smoke, p.Fog
 	s.UseMPV, s.MPVExclusive, s.MPVGapless = p.UseMPV, p.MPVExclusive, p.MPVGapless
 	s.MPVAudioDevice = p.MPVAudioDevice
+	s.DownloadDir = p.DownloadDir
 	if err := s.save(); err != nil {
 		return err
 	}
@@ -130,6 +140,63 @@ func (a *app) applyDesktopPreferences(p pluginapi.DesktopPreferences) error {
 	}
 	a.desktopTasksChanged()
 	return nil
+}
+
+// RequestDownloadOptions answers, with its token, what one song may be
+// downloaded as. The platform is asked off the application thread, so that
+// the interface is not held up by it.
+func (h platformHost) RequestDownloadOptions(track pluginapi.Track, token string) {
+	if !h.canWrite() {
+		return
+	}
+	a := h.a
+	ctx, guard := h.authorization()
+	if ctx == nil {
+		ctx = context.Background()
+		guard = func() bool { return true }
+	}
+	go func() {
+		options := a.downloadOptions(ctx, &track)
+		if !guard() {
+			return
+		}
+		postDesktopTask(a, func() {
+			a.downloads.setOptions(token, options)
+			a.desktopTasksChanged()
+		})
+	}()
+}
+
+// Download queues the songs the listener chose, at the level they chose.
+func (h platformHost) Download(tracks []pluginapi.Track, level string) {
+	if !h.canWrite() {
+		return
+	}
+	if err := h.a.startDownloads(tracks, level); err != nil {
+		h.Toast(err.Error())
+	}
+}
+
+// OpenDownloads shows the listener the host's download manager.
+func (h platformHost) OpenDownloads() {
+	if !h.canWrite() {
+		return
+	}
+	h.a.openDownloadManager()
+}
+
+// CancelDownload stops one song's download.
+func (h platformHost) CancelDownload(id uint64) {
+	if !h.canWrite() {
+		return
+	}
+	from := h.id
+	if from == "" {
+		from = h.a.platformID
+	}
+	if err := h.a.cancelDownload(id, from); err != nil {
+		h.Toast(err.Error())
+	}
 }
 
 func (h platformHost) DecoderStatus() pluginapi.DecoderStatus {

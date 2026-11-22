@@ -106,6 +106,7 @@ func (a *app) trayMenu() *mygo.Menu {
 		}
 		items := []*mygo.MenuItem{
 			{Label: "显示主窗口", Click: click(a.showMain)},
+			{Label: "下载…", Click: click(a.openDownloadManager)},
 			{Label: "插件管理…", Click: click(a.openPluginManager)},
 		}
 		lockLabel := "锁定桌面歌词"

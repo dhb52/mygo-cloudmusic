@@ -83,6 +83,10 @@ func (a *app) desktopTasksChanged() {
 	if a.settingsWin != nil {
 		a.settingsWin.Invalidate()
 	}
+	if a.downloadsWin != nil {
+		a.refreshDownloadRecords()
+		a.downloadsWin.Invalidate()
+	}
 	a.redraw()
 }
 

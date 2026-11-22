@@ -71,6 +71,9 @@ type settings struct {
 	// CacheMB is how many megabytes the songs kept on disk may take; 0
 	// keeps none.
 	CacheMB int `json:"cacheMB"`
+	// DownloadDir is where downloaded songs go; empty keeps them in the
+	// system's downloads directory.
+	DownloadDir string `json:"downloadDir,omitempty"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
 
