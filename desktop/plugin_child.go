@@ -35,23 +35,26 @@ type pluginChild struct {
 	stateDir  string
 
 	// MyGo window and adapter lifecycle state belongs to the UI thread.
-	scope           platformrpc.Scope
-	life            pluginapi.Lifecycle
-	adapter         pluginapi.Adapter
-	windows         map[pluginapi.WindowID]pluginapi.Window
-	menu            func() *mygo.Menu
-	main            *mygo.Window
-	windowIcon      []byte
-	aux             map[pluginapi.WindowID]*mygo.Window
-	service         *pluginClientServices
-	ctx             context.Context
-	cancel          context.CancelFunc
-	quitting        bool
-	active          bool
-	tray            bool
-	connection      string
-	mediaRenewal    bool
-	entrySwitch     bool
+	scope        platformrpc.Scope
+	life         pluginapi.Lifecycle
+	adapter      pluginapi.Adapter
+	windows      map[pluginapi.WindowID]pluginapi.Window
+	menu         func() *mygo.Menu
+	main         *mygo.Window
+	windowIcon   []byte
+	aux          map[pluginapi.WindowID]*mygo.Window
+	service      *pluginClientServices
+	ctx          context.Context
+	cancel       context.CancelFunc
+	quitting     bool
+	active       bool
+	tray         bool
+	connection   string
+	mediaRenewal bool
+	entrySwitch  bool
+	// hostQuit says the host takes a quit from this plugin's own window or
+	// menu as the listener quitting the application.
+	hostQuit        bool
 	media           bridge.MediaSlots
 	initialDeadline *time.Timer
 }
@@ -99,22 +102,37 @@ func RunPlatformPackage(id string, entries []pluginapi.Registration) error {
 			return child
 		})
 	})
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
-		child.quitting = true
-		if child.service != nil {
-			child.service.lyrics.Destroy()
-		}
-		if child.cancel != nil {
-			child.cancel()
-		}
-		if child.active && child.life.Deactivate != nil {
-			child.life.Deactivate(true)
-		}
-	})
+	mygo.App.OnBeforeQuit(child.beforeQuit)
 	mygo.App.OnWindowAllClosed(func() {})
 	mygo.App.OnActivate(func(bool) { child.showMain() })
 	err := mygo.App.Run()
 	return err
+}
+
+// beforeQuit decides what a quit means inside a plugin process. The host
+// owns the application: a listener quitting from the plugin's own window,
+// menu or tray asks the host to quit, and the host quits this process in
+// turn through the channel that told it to bind. A plugin nobody is
+// managing, a host too old to listen, or a session that is ending quits by
+// itself, as it always has.
+func (p *pluginChild) beforeQuit(event *mygo.QuitEvent) {
+	if p.connection != "" && p.hostQuit && !p.quitting && event != nil && !event.SessionEnding {
+		event.PreventDefault()
+		if p.service != nil {
+			p.service.QuitApp()
+		}
+		return
+	}
+	p.quitting = true
+	if p.service != nil {
+		p.service.lyrics.Destroy()
+	}
+	if p.cancel != nil {
+		p.cancel()
+	}
+	if p.active && p.life.Deactivate != nil {
+		p.life.Deactivate(true)
+	}
 }
 
 func (p *pluginChild) Hello(req platformrpc.HelloRequest, out *platformrpc.HelloReply) error {
@@ -148,6 +166,7 @@ func (p *pluginChild) Hello(req platformrpc.HelloRequest, out *platformrpc.Hello
 		p.entry, p.connection = entry, req.Connection
 		p.mediaRenewal = slices.Contains(req.Host.Provides, protocol.CapabilityMediaRenewal)
 		p.entrySwitch = slices.Contains(req.Host.Provides, protocol.CapabilityPluginEntries)
+		p.hostQuit = slices.Contains(req.Host.Provides, protocol.CapabilityQuit)
 		p.media = bridge.NewMediaSlots()
 	})
 	*out = platformrpc.HelloReply{Identity: identity, Plugin: childOffer}

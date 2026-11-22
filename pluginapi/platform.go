@@ -61,6 +61,9 @@ type Services interface {
 	ShowMain()
 	OpenSettings()
 	CloseSettings()
+	// QuitApp asks the host to quit the application, which is what the
+	// listener meant by quitting from a plugin's own window, menu or tray.
+	QuitApp()
 	// OpenDownloads shows the host's download manager: what is being
 	// fetched, what waits, and what the listener has already kept.
 	OpenDownloads()

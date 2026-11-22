@@ -20,6 +20,7 @@ const (
 	CapabilityDesktopLyrics  = "desktop-lyrics"
 	CapabilityDesktopTasks   = "desktop-tasks"
 	CapabilityDesktopPatches = "desktop-preference-patch"
+	CapabilityQuit           = "app-quit"
 )
 
 // Offer describes one side's application protocol independently of the transport.

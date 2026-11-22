@@ -19,6 +19,7 @@ const (
 	HostDownload                   = "download"
 	HostCancelDownload             = "download-cancel"
 	HostDownloadManager            = "download-manager"
+	HostQuit                       = "quit"
 )
 
 type PluginPrepare struct {

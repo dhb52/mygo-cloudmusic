@@ -297,6 +297,8 @@ func (s *pluginClientServices) CancelDownload(id uint64) {
 
 func (s *pluginClientServices) OpenDownloads() { s.action(protocol.HostDownloadManager) }
 
+func (s *pluginClientServices) QuitApp() { s.action(protocol.HostQuit) }
+
 func (s *pluginClientServices) Volume() float64 { return s.state.Volume }
 func (s *pluginClientServices) SetVolume(n float64) {
 	s.state.Volume = n

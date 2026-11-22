@@ -140,6 +140,7 @@ func (*Host) RequestDownloadOptions(pluginapi.Track, string) {}
 func (*Host) Download([]pluginapi.Track, string)             {}
 func (*Host) CancelDownload(uint64)                          {}
 func (*Host) OpenDownloads()                                 {}
+func (*Host) QuitApp()                                       {}
 
 func (h *Host) save() {
 	if h.Save != nil {
