@@ -226,6 +226,7 @@ func (h *Home) songItems(tr *pluginapi.Track, _ int64) func(*ui.Menu) {
 		if tr.Album.ID != 0 && m.Item("查看专辑："+tr.Album.Name).Chosen() {
 			h.showRoute(Route{Page: "album", Kind: "album", ID: tr.Album.ID})
 		}
+		h.downloadMenuItem(m, tr)
 	}
 }
 

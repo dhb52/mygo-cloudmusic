@@ -1292,6 +1292,7 @@ func (h *Home) playlistHeader(c *ui.Context, pl pluginapi.Playlist) {
 				if actionPill(c, "qq-list-shuffle", iconShuffle, "随机播放", false).Clicked() {
 					h.shuffle(pl.Tracks)
 				}
+				h.pageDownloadEntry(c, "qq-list-download", "下载全部", pl.Tracks)
 				h.playlistMore(c, pl)
 			})
 		})
@@ -1482,6 +1483,7 @@ func (h *Home) albumPage(c *ui.Context) {
 						if actionPill(c, "qq-album-play", iconPlay, "播放", true).Clicked() {
 							h.play(p.tracks, 0)
 						}
+						h.pageDownloadEntry(c, "qq-album-download", "下载全部", p.tracks)
 						h.albumLike(c, p)
 					})
 				})
@@ -2091,6 +2093,7 @@ func (h *Home) trackMenu(m *ui.Menu, tr *pluginapi.Track, _ int64) {
 	if tr.Album.ID != 0 && m.Item("查看专辑："+tr.Album.Name).Chosen() {
 		h.Open(Route{Page: PageAlbum, ID: tr.Album.ID})
 	}
+	h.downloadMenuItem(m, tr)
 	if h.state.Profile() == nil {
 		return
 	}

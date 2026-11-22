@@ -75,6 +75,10 @@ type Home struct {
 	preferences     *platformPreferences
 	savePreferences func()
 
+	download        downloadDialogState
+	downloadPending *pendingDownload
+	downloadSeq     int
+
 	booted                    bool
 	bootPending               bool
 	reloadHome, reloadLibrary bool
@@ -366,6 +370,7 @@ func (h *Home) CloseTransient() {
 	h.cancelLogin()
 	h.accountOpen = false
 	h.nameOpen, h.removeOpen, h.removeBusy = false, false, false
+	h.download.open, h.downloadPending = false, nil
 	h.dismissSuggestions()
 	h.closePlaybackView()
 
@@ -872,6 +877,7 @@ func (h *Home) content(c *ui.Context) {
 	h.loginDialog(c)
 	h.playlistDialog(c)
 	h.removeDialog(c)
+	h.downloadDialog(c)
 }
 
 func (h *Home) sidebar(c *ui.Context) {

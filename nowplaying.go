@@ -614,6 +614,15 @@ func (view *Home) queuePane(c *ui.Context) {
 		view.queueAt = at
 	}
 	view.queueList.Key = func(row int) any { return order[row] }
+	// The queue's own entry, above it: it takes the whole queue, as the host
+	// holds it, into the download dialog. Drawn only when it shows, so a pane
+	// without one keeps its list where it was.
+	queue := pl.Queue()
+	if downloadEntryShown(view.host.DesktopSettings(), len(queue)) {
+		ui.Row(c).Justify(ui.End).Padding(8, 0, 6, 0).Children(func() {
+			view.pageDownloadEntry(c, "qq-queue-download", "下载队列", queue)
+		})
+	}
 	ui.List(c.Key("queue"), &view.queueList, len(order), func(r int) {
 		i := order[r]
 		tr := &pl.Queue()[i]

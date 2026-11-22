@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"slices"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/waygu-music-plugin/sdk/desktop"
 
 	"github.com/waygu-music-plugin/sdk/pluginapi"
+	"github.com/waygu-music-plugin/sdk/protocol"
 )
 
 func (h *Home) desktopSettings(c *ui.Context) {
@@ -66,6 +68,9 @@ func (h *Home) desktopSettings(c *ui.Context) {
 			}
 		})
 	})
+	if state.DownloadAvailable {
+		h.downloadSettings(c, state, group, row)
+	}
 	group("外观", func() {
 		row("shared-appearance", "外观", "跟随系统或固定主题", func() {
 			modes := []string{"system", "light", "dark"}
@@ -184,6 +189,43 @@ func (h *Home) desktopSettings(c *ui.Context) {
 			row("shared-version", "当前版本 "+mygo.App.Version(), "", func() {})
 		})
 	}
+}
+
+// downloadSettings is the settings window's 下载 group: where the songs go,
+// what is coming in, and what came in lately.
+func (h *Home) downloadSettings(c *ui.Context, state pluginapi.DesktopSettings, group func(string, func()), row func(string, string, string, func())) {
+	group("下载", func() {
+		row("shared-download-dir", "下载目录", state.DownloadDir, func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				if ui.Button(c.Key("shared-download-dir-change"), "更改…").Clicked() {
+					h.chooseDownloadDir()
+				}
+				if ui.Button(c.Key("shared-download-dir-open"), "打开").Clicked() {
+					h.openDownloadDir(state.DownloadDir)
+				}
+				if ui.Button(c.Key("shared-download-dir-default"), "恢复默认").
+					Disabled(state.Preferences.DownloadDir == "").Clicked() {
+					h.setDownloadDir("")
+				}
+			})
+		})
+		row("shared-download-manager", "下载管理器", "正在下载与已下载的歌曲都在这里", func() {
+			if ui.Button(c.Key("shared-download-manager-open"), "打开下载管理器").Clicked() {
+				h.host.OpenDownloads()
+			}
+		})
+		for _, item := range state.Downloads {
+			item := item
+			if item.Phase != protocol.TaskRunning {
+				continue
+			}
+			row(fmt.Sprintf("shared-download-running-%d", item.ID), item.Name, downloadProgress(item), func() {
+				if ui.Button(c.Key(fmt.Sprintf("shared-download-cancel-%d", item.ID)), "取消").Clicked() {
+					h.host.CancelDownload(item.ID)
+				}
+			})
+		}
+	})
 }
 
 func (h *Home) audioSettings(c *ui.Context, s *pluginapi.DesktopPreferences, group func(string, func()), row func(string, string, string, func()), apply func()) {
@@ -346,12 +388,10 @@ func (h *Home) musicSettings(c *ui.Context, group func(string, func()), row func
 	group("播放", func() {
 		row("shared-quality", "音质", "下一首歌曲开始生效", func() {
 			levels := []string{"standard", "exhigh", "lossless"}
-			labels := []string{"标准（128k）", "极高（320k）", "无损（FLAC）"}
-			chosen := labels[1]
-			for i, level := range levels {
-				if settings.Quality == level {
-					chosen = labels[i]
-				}
+			labels := downloadLevelLabels(levels)
+			chosen := downloadLevelLabel(settings.Quality)
+			if !slices.Contains(labels, chosen) {
+				chosen = downloadLevelLabel("exhigh")
 			}
 			if ui.Select(c.Key("shared-quality-select"), &chosen, labels).Label("音质").Width(150).Changed() {
 				for i, label := range labels {
