@@ -4,7 +4,9 @@
 
 ## 插件
 
-先推送 SDK 的版本标签，再在插件仓库更新 Go module 依赖。飞牛发布源码标签，由宿主引用。外置插件仓库的 Release workflow 在 Ubuntu 交叉构建 Windows、macOS 和 Linux 的 amd64、arm64 版本，使用仓库 secret `PLUGIN_SIGNING_KEY` 签名发行清单，随后发布正式版。四个发行均完成后，运行[官方目录](https://github.com/waygu-music-plugin/registry)的 Publish catalog workflow。网易云的 sherpa-onnx 资源由其独立的 GitHub Actions 工作流维护。
+先推送 SDK 的版本标签，再在插件仓库更新 Go module 依赖。飞牛音乐与 QQ 音乐发布源码标签，由宿主引用（两者都内置进宿主）；宿主升级这两个插件必须重新发版。外置插件仓库的 Release workflow 在 Ubuntu 交叉构建 Windows、macOS 和 Linux 的 amd64、arm64 版本，使用仓库 secret `PLUGIN_SIGNING_KEY` 签名发行清单，随后发布正式版。四个发行均完成后，运行[官方目录](https://github.com/waygu-music-plugin/registry)的 Publish catalog workflow；QQ 音乐的外置发行仍要照发，旧版宿主只能从目录里装它。网易云的 sherpa-onnx 资源由其独立的 GitHub Actions 工作流维护。
+
+开发期宿主 `go.mod` 用 `replace` 指向本地的 `../sdk` 与 `../qqmusic`。打 Alpha 与稳定版标签前必须去掉这两条 `replace`，把 `require` 写成对应的标签版本，否则 Ubuntu runner 上的构建取不到这两个模块。
 
 ## Alpha
 

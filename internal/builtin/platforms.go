@@ -3,10 +3,13 @@ package builtin
 
 import (
 	"github.com/waygu-music-plugin/fnmusic"
+	"github.com/waygu-music-plugin/qqmusic"
 	"github.com/waygu-music-plugin/sdk/pluginapi"
 )
 
 // Platforms returns the platform constructors included in the desktop app.
+// Feiniu comes first: it is the platform the app starts on when the
+// listener has not chosen one.
 func Platforms() []pluginapi.Registration {
-	return []pluginapi.Registration{fnmusic.Registration()}
+	return []pluginapi.Registration{fnmusic.Registration(), qqmusic.Registration()}
 }

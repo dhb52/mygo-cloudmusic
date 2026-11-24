@@ -13,6 +13,7 @@ require (
 	github.com/mewkiz/flac v1.0.14
 	github.com/supersonic-app/go-upnpcast v0.1.1-0.20260517163705-d76cd97c192f
 	github.com/waygu-music-plugin/fnmusic v0.1.5
+	github.com/waygu-music-plugin/qqmusic v0.1.5
 	github.com/waygu-music-plugin/sdk v0.1.3
 	golang.org/x/image v0.46.0
 	golang.org/x/mod v0.42.0
@@ -44,5 +45,7 @@ require (
 	google.golang.org/grpc v1.61.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
+
+replace github.com/waygu-music-plugin/qqmusic => ../qqmusic
 
 replace github.com/waygu-music-plugin/sdk => ../sdk
