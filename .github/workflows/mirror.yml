@@ -81,6 +81,31 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse "mirror-$COMPONENT^{tree}")" = "$(git rev-parse "HEAD:$DIR")"
+      - name: Make the mirror stand on its own
+        env:
+          COMPONENT: ${{ steps.resolve.outputs.component }}
+        run: |
+          set -euo pipefail
+          split=$(git rev-parse "mirror-$COMPONENT")
+          git checkout --quiet "mirror-$COMPONENT"
+          # A replace naming a sibling directory resolves only inside the host
+          # repository, so the mirror builds the versions its require lines name.
+          sed --in-place --regexp-extended \
+            '/^[[:space:]]*(replace[[:space:]]+)?[^[:space:]]+[[:space:]]*=>[[:space:]]*\.\.?\//d' go.mod
+          if grep --quiet --extended-regexp '=>[[:space:]]*\.\.?/' go.mod; then
+            printf 'go.mod still replaces a directory\n' >&2
+            exit 1
+          fi
+          if git diff --quiet; then
+            exit 0
+          fi
+          git commit --quiet --all --message "Build from the published modules"
+          test "$(git diff --name-only "$split" HEAD)" = go.mod
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build the mirror
+        run: GOWORK=off go build -mod=readonly ./...
       - name: Push the mirror
         if: steps.resolve.outputs.version != ''
         env:
