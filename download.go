@@ -17,23 +17,37 @@ import (
 )
 
 // A download is a song the listener keeps. The host fetches it and writes
-// it beside its lyric and cover; QQ Music asks what the song may be
-// downloaded as, lets the listener choose, and shows what came in.
+// it beside its lyric and cover; QQ Music lists the qualities it serves,
+// lets the listener choose, and the host records what the platform served.
 
 // downloadMaxTracks is the most songs one batch may hold, the ceiling the
 // host's queue refuses at: a page says so rather than asking for more.
 const downloadMaxTracks = 8192
 
 // downloadLevels are the qualities QQ Music serves, from the cheapest up,
-// with the words the platform uses for them. higher and exhigh are both
-// 320k, so the host answers both with the level it really served, and the
-// two are one choice.
-var downloadLevels = []struct{ level, label string }{
-	{"standard", "标准（128k）"},
-	{"higher", "极高（320k）"},
-	{"exhigh", "极高（320k）"},
-	{"lossless", "无损（FLAC）"},
-	{"hires", "Hi-Res（FLAC）"},
+// with the words the platform uses for them, and whether the download
+// dialog offers them. higher and exhigh are the one 320k request, so the
+// dialog lists one and the host records whichever the platform served;
+// Hi-Res has no request of its own.
+var downloadLevels = []struct {
+	level, label string
+	dialog       bool
+}{
+	{"standard", "标准（128k）", true},
+	{"higher", "极高（320k）", true},
+	{"exhigh", "极高（320k）", false},
+	{"lossless", "无损（FLAC）", true},
+	{"hires", "Hi-Res（FLAC）", false},
+}
+
+// downloadLevelOffered is whether the download dialog lists the quality.
+func downloadLevelOffered(level string) bool {
+	for _, known := range downloadLevels {
+		if known.level == level {
+			return known.dialog
+		}
+	}
+	return false
 }
 
 // downloadLevelLabel is what the platform calls one level.
@@ -68,134 +82,31 @@ func downloadLevelLabels(levels []string) []string {
 	return labels
 }
 
-// downloadLevelOrder is where a level sits among the platform's list,
-// unknown ones last.
-func downloadLevelOrder(level string) int {
-	if rank := downloadLevelRank(level); rank >= 0 {
-		return rank
-	}
-	return len(downloadLevels)
-}
-
-// downloadChoice is one quality the dialog offers, as the probed songs
-// answered: how many of them serve it, and why none does when none does.
-type downloadChoice struct {
-	level  string
-	format string
-	size   int64
-	served int // the songs that serve it
-	total  int
-	reason string // why it is not on offer, when no song serves it
-}
-
-// available reports whether any of the songs may be downloaded at it.
-func (c downloadChoice) available() bool { return c.served > 0 }
-
-// label is the quality in the platform's own words.
-func (c downloadChoice) label() string { return downloadLevelLabel(c.level) }
-
-// detail is what the platform really serves, beside the label: the format,
-// the size of one song, and how many songs of a batch it is served for.
-func (c downloadChoice) detail() string {
-	var parts []string
-	if format := strings.ToUpper(c.format); format != "" && !strings.Contains(strings.ToUpper(c.label()), format) {
-		parts = append(parts, format)
-	}
-	if c.total == 1 && c.size > 0 {
-		parts = append(parts, megabytes(c.size))
-	}
-	if c.total > 1 && c.available() {
-		parts = append(parts, fmt.Sprintf("%d/%d 首可用", c.served, c.total))
-	}
-	if !c.available() && c.reason != "" {
-		parts = append(parts, c.reason)
-	}
-	return strings.Join(parts, " · ")
-}
-
-// downloadChoices gathers what the probed songs answered into one list, in
-// the platform's order, one entry per quality. Two levels the platform
-// serves alike, as QQ Music's higher and exhigh, read the same and are one
-// choice.
-func downloadChoices(answers [][]pluginapi.DownloadOption) []downloadChoice {
-	out := make([]downloadChoice, 0, len(downloadLevels))
-	answered := 0
-	for _, options := range answers {
-		// A song whose probe answered nothing at all is not one the batch
-		// counts: it said nothing for any quality, so a batch of ten songs
-		// one of which answered is a batch of one.
-		spoke := false
-		for _, o := range options {
-			if o.Level == "" {
-				continue
-			}
-			spoke = true
-			label := downloadLevelLabel(o.Level)
-			i := slices.IndexFunc(out, func(c downloadChoice) bool { return c.label() == label })
-			if i < 0 {
-				out = append(out, downloadChoice{level: o.Level})
-				i = len(out) - 1
-			}
-			c := &out[i]
-			if !o.Available {
-				if c.reason == "" {
-					c.reason = o.Reason
-				}
-				continue
-			}
-			c.served++
-			if c.format == "" {
-				c.format = o.Format
-			}
-			if c.size == 0 {
-				c.size = o.Size
-			}
-		}
-		if spoke {
-			answered++
-		}
-	}
-	for i := range out {
-		out[i].total = answered
-	}
-	slices.SortStableFunc(out, func(a, b downloadChoice) int {
-		return downloadLevelOrder(a.level) - downloadLevelOrder(b.level)
-	})
-	return out
-}
-
 // defaultDownloadLevel is the quality the dialog starts on: the one
-// remembered, else the platform's own quality setting, else the one on
-// offer closest to them. Two as close as each other, the one at or above
-// what they wanted is the one they meant.
-func defaultDownloadLevel(preferred, quality string, choices []downloadChoice) string {
-	for _, wanted := range []string{preferred, quality} {
-		if wanted == "" {
-			continue
-		}
-		for _, c := range choices {
-			if c.level == wanted && c.available() {
-				return c.level
-			}
-		}
+// remembered when the dialog offers it, else the platform's own quality
+// setting, else the level closest to it. Two as close as each other, the
+// one at or above what they wanted is the one they meant.
+func defaultDownloadLevel(preferred, quality string) string {
+	if downloadLevelOffered(preferred) {
+		return preferred
 	}
-	wanted := quality
-	if wanted == "" {
-		wanted = preferred
+	// higher and exhigh are the one 320k request; the dialog lists higher.
+	if quality == "exhigh" {
+		quality = "higher"
 	}
 	best := ""
 	gap, above := 0, false
-	for _, c := range choices {
-		if !c.available() {
+	for i, known := range downloadLevels {
+		if !known.dialog {
 			continue
 		}
-		offset := downloadLevelRank(c.level) - downloadLevelRank(wanted)
+		offset := i - downloadLevelRank(quality)
 		diff := offset
 		if diff < 0 {
 			diff = -diff
 		}
 		if best == "" || diff < gap || (diff == gap && offset >= 0 && !above) {
-			best, gap, above = c.level, diff, offset >= 0
+			best, gap, above = known.level, diff, offset >= 0
 		}
 	}
 	return best
@@ -256,26 +167,14 @@ func downloadRef(tr *pluginapi.Track) string {
 	return strconv.FormatInt(tr.ID, 10)
 }
 
-// pendingDownload waits for the host's answers about what songs may be
-// downloaded as. Probing needs the network, so the host answers later, with
-// the token of the request; a batch is asked about one song at a time, as
-// the host keeps the answer it gave last.
-type pendingDownload struct {
-	seq     int
-	tracks  []pluginapi.Track
-	token   string
-	answers [][]pluginapi.DownloadOption
-}
-
-// downloadDialogState is the quality dialog: what it offers, what is
+// downloadDialogState is the quality dialog: the batch it is over, what is
 // chosen, and what it says about the directory.
 type downloadDialogState struct {
-	open    bool
-	tracks  []pluginapi.Track
-	choices []downloadChoice
-	level   string
-	dir     string
-	dirErr  string
+	open   bool
+	tracks []pluginapi.Track
+	level  string
+	dir    string
+	dirErr string
 	// dirChecked is whether the directory has been looked at since the
 	// dialog opened: the first frame checks it too, so that a host that
 	// never settled on one is said rather than the download starting into
@@ -297,10 +196,6 @@ func (h *Home) downloadMenuItem(m *ui.Menu, tr *pluginapi.Track) {
 	m.Separator()
 	if downloading(state, tr) {
 		m.Item("下载中…").Disabled(true)
-		return
-	}
-	if h.downloadPending != nil {
-		m.Item("正在检查音质…").Disabled(true)
 		return
 	}
 	if m.Item("下载").Chosen() {
@@ -328,84 +223,30 @@ func (h *Home) pageDownloadEntry(c *ui.Context, key, label string, tracks []plug
 		actionPill(c, key, iconDownload, "下载中…", false).Disabled(true)
 		return
 	}
-	if h.downloadPending != nil {
-		actionPill(c, key, iconDownload, "正在检查音质…", false).Disabled(true)
-		return
-	}
 	if actionPill(c, key, iconDownload, label, false).Clicked() {
 		h.beginDownload(tracks)
 	}
 }
 
-// beginDownload asks what the songs may be downloaded as, and opens the
-// quality dialog when the answers are in. A batch longer than the host takes
-// is refused here, with the ceiling said.
+// beginDownload opens the quality dialog on the levels the plugin lists,
+// refusing a batch longer than the host takes with the ceiling said.
 func (h *Home) beginDownload(tracks []pluginapi.Track) {
 	if len(tracks) == 0 {
-		return
-	}
-	// One probe at a time. The host keeps the answer it gave last, so a
-	// second request while one is out would bury the first answer under it
-	// and leave this one waiting for a token that never comes.
-	if h.downloadPending != nil {
 		return
 	}
 	if len(tracks) > downloadMaxTracks {
 		h.host.Toast(fmt.Sprintf("一次最多下载 %d 首，请分批下载", downloadMaxTracks))
 		return
 	}
-	// The host is asked about one song at a time, over frames, so the list is
-	// kept until the dialog opens: a page that changes under it, a song taken
-	// out of the playlist, must not change what is downloaded.
-	h.downloadSeq++
-	h.downloadPending = &pendingDownload{seq: h.downloadSeq, tracks: slices.Clone(tracks)}
-	h.askDownloadOptions()
-}
-
-// askDownloadOptions asks about the next song, or opens the dialog once
-// every one has answered.
-func (h *Home) askDownloadOptions() {
-	p := h.downloadPending
-	if p == nil {
-		return
-	}
-	if len(p.answers) >= len(p.tracks) {
-		h.openDownloadDialog()
-		return
-	}
-	at := len(p.answers)
-	p.token = fmt.Sprintf("%s.%d.%d", downloadRef(&p.tracks[at]), at, p.seq)
-	h.host.RequestDownloadOptions(p.tracks[at], p.token)
-}
-
-// downloadAnswers takes a probe's answer, if it is the one in flight.
-func (h *Home) downloadAnswers(state pluginapi.DesktopSettings) {
-	p := h.downloadPending
-	if p == nil {
-		return
-	}
-	if !state.DownloadAvailable {
-		h.downloadPending = nil
-		return
-	}
-	if state.DownloadOptionsToken != p.token {
-		return
-	}
-	p.answers = append(p.answers, state.DownloadOptions)
-	h.askDownloadOptions()
-}
-
-// openDownloadDialog shows what the songs may be downloaded as.
-func (h *Home) openDownloadDialog() {
-	p := h.downloadPending
-	h.downloadPending = nil
 	preferred, quality := "", ""
 	if h.preferences != nil {
 		preferred, quality = h.preferences.DownloadLevel, h.preferences.Quality
 	}
+	// The list is kept: a page that changes under the dialog, a song taken
+	// out of the playlist, must not change what is downloaded.
 	d := &h.download
-	d.tracks, d.choices = p.tracks, downloadChoices(p.answers)
-	d.level = defaultDownloadLevel(preferred, quality, d.choices)
+	d.tracks = slices.Clone(tracks)
+	d.level = defaultDownloadLevel(preferred, quality)
 	d.dir, d.dirErr, d.dirChecked = "", "", false
 	d.open = true
 }
@@ -463,10 +304,9 @@ func (h *Home) openDownloadDir(dir string) {
 }
 
 // downloadDialog is the quality dialog, over the page the song was picked
-// on. What the host probed arrives here, keyed on the token of the request.
+// on: the levels the platform serves, and where the songs go.
 func (h *Home) downloadDialog(c *ui.Context) {
 	state := h.host.DesktopSettings()
-	h.downloadAnswers(state)
 	d := &h.download
 	if !d.open {
 		return
@@ -488,11 +328,11 @@ func (h *Home) downloadDialog(c *ui.Context) {
 		}
 		ui.Text(c, title).FontSize(17).FontWeight(700)
 		ui.Column(c).Gap(2).Children(func() {
-			for i, choice := range d.choices {
-				h.downloadChoiceRow(c, i, choice)
-			}
-			if len(d.choices) == 0 {
-				ui.Text(c, "暂时获取不到下载音质，请稍后再试").FontSize(12.5).TextColor(t.TextMuted)
+			for i, known := range downloadLevels {
+				if !known.dialog {
+					continue
+				}
+				h.downloadChoiceRow(c, i, known.level)
 			}
 		})
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -517,7 +357,7 @@ func (h *Home) downloadDialog(c *ui.Context) {
 				d.open = false
 			}
 			start := actionPill(c, "qq-download-start", nil, "开始下载", true)
-			if start.Disabled(d.level == "" || d.dirErr != "").Clicked() {
+			if start.Disabled(d.dirErr != "").Clicked() {
 				h.host.Download(d.tracks, d.level)
 				d.open = false
 			}
@@ -525,19 +365,20 @@ func (h *Home) downloadDialog(c *ui.Context) {
 	})
 }
 
-// downloadChoiceRow is one quality of the dialog: what it serves, and,
-// when the platform does not serve it, why not.
-func (h *Home) downloadChoiceRow(c *ui.Context, i int, choice downloadChoice) {
+// downloadChoiceRow is one quality of the dialog: its label, and whether it
+// is the one chosen.
+func (h *Home) downloadChoiceRow(c *ui.Context, i int, level string) {
 	t := c.Theme()
 	d := &h.download
-	chosen := choice.level == d.level
+	chosen := level == d.level
+	label := downloadLevelLabel(level)
 	row := ui.ButtonBase(c.Key(fmt.Sprintf("qq-download-level-%d", i))).Padding(10, 12).Gap(10).
-		Radius(10).AlignItems(ui.Center).FocusRing(false).Label(choice.label()).Disabled(!choice.available())
+		Radius(10).AlignItems(ui.Center).FocusRing(false).Label(label)
 	bg := ui.Transparent
 	switch {
 	case chosen:
 		bg = t.Accent.Alpha(0.10)
-	case row.Hovered() && choice.available():
+	case row.Hovered():
 		bg = t.Text.Alpha(0.04)
 	}
 	row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
@@ -547,20 +388,15 @@ func (h *Home) downloadChoiceRow(c *ui.Context, i int, choice downloadChoice) {
 				ui.Icon(c, iconCheck).Size(13, 13).TextColor(t.Accent)
 			}
 		})
-		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
-			name := t.Text
-			if chosen {
-				name = t.Accent
-			}
-			ui.Text(c, choice.label()).FontSize(13.5).FontWeight(500).TextColor(name).SingleLine()
-			if detail := choice.detail(); detail != "" {
-				ui.Text(c, detail).FontSize(12).TextColor(t.TextMuted).SingleLine()
-			}
-		})
+		name := t.Text
+		if chosen {
+			name = t.Accent
+		}
+		ui.Text(c, label).FontSize(13.5).FontWeight(500).TextColor(name).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 	})
-	if row.Clicked() && choice.available() {
-		d.level = choice.level
-		h.rememberDownloadLevel(choice.level)
+	if row.Clicked() {
+		d.level = level
+		h.rememberDownloadLevel(level)
 	}
 }
 

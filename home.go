@@ -75,9 +75,7 @@ type Home struct {
 	preferences     *platformPreferences
 	savePreferences func()
 
-	download        downloadDialogState
-	downloadPending *pendingDownload
-	downloadSeq     int
+	download downloadDialogState
 
 	booted                    bool
 	bootPending               bool
@@ -370,7 +368,7 @@ func (h *Home) CloseTransient() {
 	h.cancelLogin()
 	h.accountOpen = false
 	h.nameOpen, h.removeOpen, h.removeBusy = false, false, false
-	h.download.open, h.downloadPending = false, nil
+	h.download.open = false
 	h.dismissSuggestions()
 	h.closePlaybackView()
 
