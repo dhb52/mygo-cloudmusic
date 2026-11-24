@@ -108,16 +108,6 @@ type DesktopSettings struct {
 	DownloadAvailable             bool
 	DownloadDir                   string
 	Downloads                     []DesktopDownloadItem
-	DownloadOptions               []DesktopDownloadOption
-	DownloadOptionsToken          string
-}
-
-type DesktopDownloadOption struct {
-	Level     string
-	Format    string
-	Size      int64
-	Available bool
-	Reason    string
 }
 
 type DesktopDownloadItem struct {

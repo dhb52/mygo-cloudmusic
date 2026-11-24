@@ -15,7 +15,6 @@ const (
 	HostSetTaskbarLyricsFontSize   = "taskbar-lyrics-font-size"
 	HostSetTaskbarLyricsFontFamily = "taskbar-lyrics-font-family"
 	HostSetLyricsFontFamily        = "lyrics-font-family"
-	HostRequestDownloadOptions     = "download-options"
 	HostDownload                   = "download"
 	HostCancelDownload             = "download-cancel"
 	HostDownloadManager            = "download-manager"

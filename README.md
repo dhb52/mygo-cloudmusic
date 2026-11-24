@@ -73,7 +73,7 @@
 
 宿主用 `DesktopSettings.DownloadAvailable` 宣告下载能力，未宣告的宿主上插件不显示下载入口、弹窗和设置行。`DesktopSettings.DownloadDir` 是宿主解析后的生效目录；用户改目录时，插件用 `DesktopPatch` 的 `PrefDownloadDir`（`1 << 12`）写回，空字符串表示系统下载目录。
 
-音质选项不用请求-响应：`Host.RequestDownloadOptions(track, token)` 只排队探测，结果随 `DesktopSettings.DownloadOptions` 推回，`DownloadOptionsToken` 与请求带上的一致时才采用。`Host.Download(tracks, level)` 提交一批曲目，宿主串行下载，每批一个 `song-download` 桌面任务；每首的进度与结果在 `DesktopSettings.Downloads`（`running`、`succeeded`、`failed`、`canceled`），`Ref` 是曲目在平台上的引用（判断"这首在不在下载中"用它，`Name` 是宿主清洗过的展示名），`ID` 用于 `Host.CancelDownload(id)`。三个调用都即发即忘，插件在 UI 线程上不等待网络。
+音质清单不用请求-响应：级别由插件自己按 `pluginapi.Levels` 列出，宿主的 `DesktopSettings` 只宣告下载能力与目录。`Host.Download(tracks, level)` 提交一批曲目，宿主串行下载，每批一个 `song-download` 桌面任务；`level` 只是向平台请求的档次，平台服务什么级别就落盘什么级别，因此每首的 `Level` 是平台实际服务的级别，可能低于请求。每首的进度与结果在 `DesktopSettings.Downloads`（`running`、`succeeded`、`failed`、`canceled`），`Ref` 是曲目在平台上的引用（判断"这首在不在下载中"用它，`Name` 是宿主清洗过的展示名），`ID` 用于 `Host.CancelDownload(id)`。两个调用都即发即忘，插件在 UI 线程上不等待网络。
 
 ## 错误
 

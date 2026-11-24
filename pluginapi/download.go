@@ -2,15 +2,6 @@ package pluginapi
 
 import "github.com/waygu-music-plugin/sdk/protocol"
 
-// DownloadOption is one quality a track may be downloaded at.
-type DownloadOption struct {
-	Level     string // standard/higher/exhigh/lossless/hires
-	Format    string // mp3 or flac, as probed
-	Size      int64  // bytes; zero when unknown
-	Available bool
-	Reason    string // why it is unavailable, shown to the listener
-}
-
 // DownloadItem is one track's download in the settings window.
 type DownloadItem struct {
 	ID    uint64
@@ -19,7 +10,9 @@ type DownloadItem struct {
 	// Ref is the song's own reference on its platform, which the plugin
 	// asks with and matches on: the name is the listener's to read and
 	// may be cleaned up on the way to a file system.
-	Ref   string
+	Ref string
+	// Level is the level the file really is: the platform may serve lower
+	// than the one asked for.
 	Level string
 	Phase protocol.TaskPhase
 	Done  int64

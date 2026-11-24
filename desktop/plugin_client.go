@@ -283,10 +283,6 @@ func (s *pluginClientServices) SetUpdateDownloads(on bool) {
 }
 func (s *pluginClientServices) CheckForUpdates() { s.action("update-check") }
 
-func (s *pluginClientServices) RequestDownloadOptions(track pluginapi.Track, token string) {
-	s.send(bridge.PluginHostCall{Action: protocol.HostRequestDownloadOptions, Tracks: []pluginapi.Track{track}, Text: token})
-}
-
 func (s *pluginClientServices) Download(tracks []pluginapi.Track, level string) {
 	s.send(bridge.PluginHostCall{Action: protocol.HostDownload, Tracks: tracks, Level: level})
 }

@@ -48,14 +48,11 @@ type DesktopSettings struct {
 	CacheTask                   DesktopTask
 
 	// DownloadAvailable advertises a host that downloads songs. DownloadDir is
-	// the effective directory; Downloads and DownloadOptions are the latest
-	// state pushed for the settings window. DownloadOptionsToken matches a
-	// RequestDownloadOptions call with its results.
-	DownloadAvailable    bool
-	DownloadDir          string
-	Downloads            []DownloadItem
-	DownloadOptions      []DownloadOption
-	DownloadOptionsToken string
+	// the effective directory; Downloads is the latest download state pushed
+	// for the settings window.
+	DownloadAvailable bool
+	DownloadDir       string
+	Downloads         []DownloadItem
 }
 
 type AudioDevice struct {
@@ -93,10 +90,9 @@ type DesktopServices interface {
 	SetUpdateDownloads(bool)
 	CheckForUpdates()
 
-	// The download calls queue and return: probing a quality needs the
-	// network, so results arrive as DownloadOptions in a later snapshot, tagged
-	// with the token passed here. Download starts a batch one track at a time.
-	RequestDownloadOptions(track Track, token string)
+	// The download calls queue and return. Download starts a batch one track at
+	// a time at the asked level; the platform may serve lower, and the level
+	// the file really is comes back in DownloadItem.Level.
 	Download(tracks []Track, level string)
 	CancelDownload(id uint64)
 }

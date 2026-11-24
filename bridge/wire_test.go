@@ -20,20 +20,15 @@ func TestDesktopDownloadWireRoundTrip(t *testing.T) {
 
 	desktop := pluginapi.DesktopSettings{
 		Preferences: prefs, DownloadAvailable: true, DownloadDir: "/Users/someone/Music",
-		DownloadOptionsToken: "probe-1",
 		Downloads: []pluginapi.DownloadItem{{
 			ID: 7, Batch: 3, Name: "歌手 - 歌名", Ref: "song-ref", Level: "lossless", Phase: "running",
 			Done: 1024, Total: 4096, Path: "/Users/someone/Music/歌手 - 歌名.flac",
 		}},
-		DownloadOptions: []pluginapi.DownloadOption{
-			{Level: "standard", Format: "mp3", Size: 3_500_000, Available: true},
-			{Level: "lossless", Format: "flac", Size: 32_400_000, Reason: "需要会员"},
-		},
 	}
 	facade := PluginSnapshot{Desktop: desktop}
 
 	wire := WireSnapshot(facade).Desktop
-	if !wire.DownloadAvailable || wire.DownloadDir != desktop.DownloadDir || wire.DownloadOptionsToken != "probe-1" {
+	if !wire.DownloadAvailable || wire.DownloadDir != desktop.DownloadDir {
 		t.Fatalf("availability and directory did not reach the wire: %#v", wire)
 	}
 	if wire.Preferences.DownloadDir != prefs.DownloadDir {
@@ -46,13 +41,6 @@ func TestDesktopDownloadWireRoundTrip(t *testing.T) {
 	if item.ID != 7 || item.Batch != 3 || item.Name != "歌手 - 歌名" || item.Level != "lossless" ||
 		item.Phase != "running" || item.Done != 1024 || item.Total != 4096 || item.Path != desktop.Downloads[0].Path {
 		t.Fatalf("wire lost download state: %#v", item)
-	}
-	if len(wire.DownloadOptions) != 2 {
-		t.Fatalf("wire carried %d options", len(wire.DownloadOptions))
-	}
-	option := wire.DownloadOptions[1]
-	if option.Level != "lossless" || option.Format != "flac" || option.Size != 32_400_000 || option.Available || option.Reason != "需要会员" {
-		t.Fatalf("wire lost option state: %#v", option)
 	}
 
 	if got := LocalSnapshot(WireSnapshot(facade)).Desktop; !reflect.DeepEqual(got, desktop) {

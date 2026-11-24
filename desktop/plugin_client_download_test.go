@@ -15,7 +15,6 @@ func TestPluginClientDownloadCallsQueue(t *testing.T) {
 		child:    &pluginChild{ctx: context.Background()},
 		commands: make(chan bridge.PluginHostCall, 4),
 	}
-	services.RequestDownloadOptions(pluginapi.Track{Name: "歌", ID: 5}, "probe-1")
 	services.Download([]pluginapi.Track{{Name: "歌", ID: 5}}, "lossless")
 	services.CancelDownload(7)
 	services.OpenDownloads()
@@ -29,11 +28,6 @@ func TestPluginClientDownloadCallsQueue(t *testing.T) {
 			t.Fatal("a download call did not queue")
 			return bridge.PluginHostCall{}
 		}
-	}
-	options := take()
-	if options.Action != protocol.HostRequestDownloadOptions || options.Text != "probe-1" ||
-		len(options.Tracks) != 1 || options.Tracks[0].ID != 5 {
-		t.Fatalf("unexpected options request: %#v", options)
 	}
 	download := take()
 	if download.Action != protocol.HostDownload || download.Level != "lossless" || download.Text != "" ||

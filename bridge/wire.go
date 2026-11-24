@@ -166,11 +166,7 @@ func WireSnapshot(s PluginSnapshot) protocol.PluginSnapshot {
 			LyricsFontFamily:            s.Desktop.LyricsFontFamily,
 			DownloadAvailable:           s.Desktop.DownloadAvailable,
 			DownloadDir:                 s.Desktop.DownloadDir,
-			DownloadOptionsToken:        s.Desktop.DownloadOptionsToken,
 			Downloads:                   mapWireValues(s.Desktop.Downloads, wireDownloadItem),
-			DownloadOptions: mapWireValues(s.Desktop.DownloadOptions, func(v pluginapi.DownloadOption) protocol.DesktopDownloadOption {
-				return protocol.DesktopDownloadOption(v)
-			}),
 		},
 		Decoder: protocol.DecoderStatus{
 			Ready: s.Decoder.Ready, Downloaded: s.Decoder.Downloaded, Downloading: s.Decoder.Downloading,
@@ -221,11 +217,7 @@ func LocalSnapshot(s protocol.PluginSnapshot) PluginSnapshot {
 			LyricsFontFamily:            s.Desktop.LyricsFontFamily,
 			DownloadAvailable:           s.Desktop.DownloadAvailable,
 			DownloadDir:                 s.Desktop.DownloadDir,
-			DownloadOptionsToken:        s.Desktop.DownloadOptionsToken,
 			Downloads:                   mapWireValues(s.Desktop.Downloads, localDownloadItem),
-			DownloadOptions: mapWireValues(s.Desktop.DownloadOptions, func(v protocol.DesktopDownloadOption) pluginapi.DownloadOption {
-				return pluginapi.DownloadOption(v)
-			}),
 		},
 		Decoder: pluginapi.DecoderStatus{
 			Ready: s.Decoder.Ready, Downloaded: s.Decoder.Downloaded, Downloading: s.Decoder.Downloading,
