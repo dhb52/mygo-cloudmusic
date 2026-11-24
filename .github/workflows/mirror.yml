@@ -1,0 +1,98 @@
+name: Mirror
+
+on:
+  push:
+    tags: ["sdk/v*", "qqmusic/v*"]
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component to split
+        required: true
+        type: choice
+        options: ["sdk", "qqmusic"]
+      tag:
+        description: Component tag to push, e.g. sdk/v0.2.0. Empty splits and verifies only.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    if: github.repository == 'dhb52/mygo-cloudmusic'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Resolve the component
+        id: resolve
+        env:
+          DISPATCH_COMPONENT: ${{ inputs.component }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            component="$DISPATCH_COMPONENT"
+            tag="$DISPATCH_TAG"
+          else
+            tag="$GITHUB_REF_NAME"
+            component="${tag%%/*}"
+          fi
+          case "$component" in
+            sdk) dir=sdk; repo=waygu-music-plugin/sdk ;;
+            qqmusic) dir=plugins/qqmusic; repo=waygu-music-plugin/qqmusic ;;
+            *)
+              printf 'No mirror target for component %s\n' "$component" >&2
+              exit 1
+              ;;
+          esac
+          version=""
+          if [[ -n "$tag" ]]; then
+            prefix="$component/"
+            if [[ "$tag" != "$prefix"* || "${tag#"$prefix"}" != v* ]]; then
+              printf 'Tag %s is not %sv<version>\n' "$tag" "$prefix" >&2
+              exit 1
+            fi
+            test "$(git rev-parse "refs/tags/$tag^{commit}")" = "$(git rev-parse HEAD)"
+            version="${tag#"$prefix"}"
+          fi
+          {
+            printf 'dir=%s\n' "$dir"
+            printf 'repo=%s\n' "$repo"
+            printf 'component=%s\n' "$component"
+            printf 'tag=%s\n' "$tag"
+            printf 'version=%s\n' "$version"
+          } >> "$GITHUB_OUTPUT"
+      - name: Split the subtree
+        env:
+          DIR: ${{ steps.resolve.outputs.dir }}
+          COMPONENT: ${{ steps.resolve.outputs.component }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git subtree split --prefix="$DIR" -b "mirror-$COMPONENT"
+      - name: Verify the split
+        env:
+          DIR: ${{ steps.resolve.outputs.dir }}
+          COMPONENT: ${{ steps.resolve.outputs.component }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse "mirror-$COMPONENT^{tree}")" = "$(git rev-parse "HEAD:$DIR")"
+      - name: Push the mirror
+        if: steps.resolve.outputs.version != ''
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          REPO: ${{ steps.resolve.outputs.repo }}
+          COMPONENT: ${{ steps.resolve.outputs.component }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "$MIRROR_TOKEN"
+          remote="https://x-access-token:${MIRROR_TOKEN}@github.com/${REPO}.git"
+          git push --force "$remote" "mirror-${COMPONENT}:main"
+          git tag -f "$TAG" "mirror-${COMPONENT}"
+          git push "$remote" "refs/tags/${TAG}:refs/tags/${VERSION}"

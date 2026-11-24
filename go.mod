@@ -46,6 +46,6 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 )
 
-replace github.com/waygu-music-plugin/qqmusic => ../qqmusic
+replace github.com/waygu-music-plugin/qqmusic => ./plugins/qqmusic
 
-replace github.com/waygu-music-plugin/sdk => ../sdk
+replace github.com/waygu-music-plugin/sdk => ./sdk

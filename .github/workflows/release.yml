@@ -27,7 +27,10 @@ jobs:
           bash scripts/build-dmg-tools.sh "$RUNNER_TEMP/dmg-tools"
           printf '%s\n' "$RUNNER_TEMP/dmg-tools" >> "$GITHUB_PATH"
       - name: Test the host
-        run: GOWORK=off go test -mod=readonly ./...
+        run: |
+          GOWORK=off go test -mod=readonly ./...
+          (cd sdk && GOWORK=off go test -mod=readonly ./...)
+          (cd plugins/qqmusic && GOWORK=off go test -mod=readonly ./...)
       - name: Prepare the draft release
         env:
           GH_TOKEN: ${{ github.token }}

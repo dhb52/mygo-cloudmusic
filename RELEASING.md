@@ -6,7 +6,17 @@
 
 先推送 SDK 的版本标签，再在插件仓库更新 Go module 依赖。飞牛音乐与 QQ 音乐发布源码标签，由宿主引用（两者都内置进宿主）；宿主升级这两个插件必须重新发版。外置插件仓库的 Release workflow 在 Ubuntu 交叉构建 Windows、macOS 和 Linux 的 amd64、arm64 版本，使用仓库 secret `PLUGIN_SIGNING_KEY` 签名发行清单，随后发布正式版。四个发行均完成后，运行[官方目录](https://github.com/waygu-music-plugin/registry)的 Publish catalog workflow；QQ 音乐的外置发行仍要照发，旧版宿主只能从目录里装它。网易云的 sherpa-onnx 资源由其独立的 GitHub Actions 工作流维护。
 
-开发期宿主 `go.mod` 用 `replace` 指向本地的 `../sdk` 与 `../qqmusic`。打 Alpha 与稳定版标签前必须去掉这两条 `replace`，把 `require` 写成对应的标签版本，否则 Ubuntu runner 上的构建取不到这两个模块。
+开发期宿主 `go.mod` 用 `replace` 把 SDK 与 QQ 音乐指到仓内的 `./sdk`、`./plugins/qqmusic`，`plugins/qqmusic/go.mod` 再指到 `../../sdk`。这三条 `replace` 跟着仓库走，打标签前不需要删；`require` 仍写最后一次发布的标签版本，跟着升级。
+
+### SDK 与 QQ 音乐
+
+这两个子目录在宿主仓库里开发，各自仍是独立 module，发布仍由它们在 [waygu-music-plugin](https://github.com/waygu-music-plugin) 的仓库完成，靠标签触发：
+
+- 宿主 `v*` 标签推 [vicnoah/mygo-cloudmusic](https://github.com/vicnoah/mygo-cloudmusic)，走本仓库的 Release workflow。
+- `sdk/v*` 与 `qqmusic/v*` 标签推 `dhb52/mygo-cloudmusic`。**Mirror** workflow（只在这个仓库执行）把 `sdk/` 或 `plugins/qqmusic/` 用 `git subtree split` 拆出来，校验拆分结果与子目录逐字节一致，再用 secret `MIRROR_TOKEN` 把结果 force push 到 `waygu-music-plugin/sdk` 或 `waygu-music-plugin/qqmusic` 的 `main`，并推送版本标签（`sdk/v0.2.0` → `v0.2.0`）。标签触发那两个仓库自己的 Release workflow：SDK 发源码 release，QQ 音乐发六个目标的 ZIP 与签名清单。`MIRROR_TOKEN` 是 fine-grained PAT，对两个镜像仓库各有 `contents: write`，用 `gh secret set MIRROR_TOKEN` 在 `dhb52/mygo-cloudmusic` 里配置。
+- 也可以用 **Mirror** 的 workflow_dispatch 手动跑：只给 `component` 就只做拆分与校验、不推送；再给 `tag`（必须指向当前检出的提交）才推送。
+
+镜像仓库的 `main` 是被 force push 改写的提交（子树拆分重写父提交，文件内容与提交信息不变），此后只在宿主仓库改这两个子目录，不要再 `git subtree pull`。
 
 ## Alpha
 
