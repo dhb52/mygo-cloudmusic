@@ -165,9 +165,6 @@ func (a *app) activatePlatformView() {
 
 func (a *app) deactivatePlatformView(switching bool) {
 	a.platformAuthority.Store(nil)
-	if a.downloads != nil {
-		a.downloads.options.forget()
-	}
 	a.pluginActivations.Revoke(a.platformScope)
 	if a.cancelPlatform != nil {
 		a.cancelPlatform()

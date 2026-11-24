@@ -538,3 +538,152 @@ func TestDownloadDirSurvivesAnUnrelatedPreference(t *testing.T) {
 		t.Fatalf("an unrelated preference left the download directory as %q", a.settings.DownloadDir)
 	}
 }
+
+// downloadAdapter is a platform that serves one song at the levels a test
+// chooses.
+type downloadAdapter struct {
+	streams func(context.Context, *pluginapi.Track, string) (*pluginapi.Stream, error)
+	lyrics  func(context.Context, *pluginapi.Track) (string, string, string, error)
+	cover   func(context.Context, *pluginapi.Track) ([]byte, error)
+}
+
+func (d downloadAdapter) Configured() bool { return true }
+func (d downloadAdapter) OwnsTrack(tr *pluginapi.Track) bool {
+	return tr != nil && tr.Source == "test-platform"
+}
+func (d downloadAdapter) FetchArtwork(context.Context, string, int) ([]byte, bool, error) {
+	return nil, false, nil
+}
+func (d downloadAdapter) PlaybackMedia() pluginapi.PlaybackMedia {
+	return pluginapi.PlaybackMedia{Stream: d.streams, Lyrics: d.lyrics, Cover: d.cover}
+}
+
+// downloadApp is an app with one platform that answers for the test song.
+func downloadApp(adapter downloadAdapter) (*app, *pluginapi.Track) {
+	a := newTestApp()
+	a.platformID = "test-platform"
+	a.platforms = map[pluginapi.ID]pluginapi.Adapter{"test-platform": adapter}
+	a.configurePlatformPlayer()
+	a.pluginContext = context.Background()
+	a.downloads = newDownloads()
+	track := &pluginapi.Track{
+		ID: 7, Name: "歌名", Source: "test-platform", Ref: "song-ref",
+		Artists: []pluginapi.Artist{{Name: "歌手"}},
+	}
+	return a, track
+}
+
+// streamAtLevels answers each level with what the platform really serves:
+// the level named, or the lower one it fell back to.
+func streamAtLevels(served map[string]string, size int64) func(context.Context, *pluginapi.Track, string) (*pluginapi.Stream, error) {
+	return func(_ context.Context, _ *pluginapi.Track, level string) (*pluginapi.Stream, error) {
+		got, ok := served[level]
+		if !ok {
+			return nil, pluginapi.ErrUnavailable
+		}
+		return &pluginapi.Stream{URL: "http://example.invalid/" + got, Type: "mp3", Level: got, Size: size}, nil
+	}
+}
+
+// The host tells the plugin that downloads are on offer and where they go.
+func TestDesktopSettingsAdvertiseDownloads(t *testing.T) {
+	a, _ := downloadApp(downloadAdapter{streams: streamAtLevels(map[string]string{"standard": "standard"}, 100)})
+	dir := t.TempDir()
+	a.settings.DownloadDir = dir
+
+	state := platformHost{a: a}.DesktopSettings()
+	if !state.DownloadAvailable || state.DownloadDir != dir {
+		t.Fatalf("the host advertises downloads=%v in %q, want true in %q", state.DownloadAvailable, state.DownloadDir, dir)
+	}
+}
+
+// A level the platform serves below the one asked for is fetched anyway, and
+// is named and recorded as the level it really is.
+func TestDownloadKeepsTheLevelThePlatformServes(t *testing.T) {
+	inlinePosts(t)
+	body := bytes.Repeat([]byte("ID3"), 1024)
+	a, track, dir := downloadSetup(t, audioServer(t, body).URL, int64(len(body)), 64)
+
+	if err := a.startDownloads([]pluginapi.Track{*track}, "lossless"); err != nil {
+		t.Fatalf("startDownloads: %v", err)
+	}
+	runQueued(a)
+
+	if got, err := os.ReadFile(filepath.Join(dir, "歌手 - 歌名.mp3")); err != nil || !bytes.Equal(got, body) {
+		t.Fatalf("the song is %d bytes (%v), want the %d the platform served as mp3", len(got), err, len(body))
+	}
+	items := a.downloads.snapshot()
+	if len(items) != 1 || items[0].Level != "standard" {
+		t.Fatalf("the download is %+v, want it shown at standard", items)
+	}
+	record, ok := a.downloads.records.find(downloadRecordKey{platform: "test-platform", ref: "song-ref"})
+	if !ok || record.Level != "standard" {
+		t.Fatalf("the record is %+v (%v), want it kept at standard", record, ok)
+	}
+}
+
+// The cache is asked for the level that really comes in, so a copy at that
+// level is taken rather than the song fetched again.
+func TestDownloadCopiesTheCacheAtTheLevelServed(t *testing.T) {
+	inlinePosts(t)
+	a, track := downloadApp(downloadAdapter{streams: streamAtLevels(map[string]string{"lossless": "standard"}, 0)})
+	a.settings.DownloadDir = t.TempDir()
+	body := bytes.Repeat([]byte("cached"), 512)
+	cached := filepath.Join(t.TempDir(), "cached.mp3")
+	if err := os.WriteFile(cached, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The platform's stream is unreachable, so only the copy can bring the
+	// song in.
+	var asked string
+	previous := cachedDownload
+	cachedDownload = func(_ *player.Cache, _ pluginapi.ID, _ *pluginapi.Track, level, format string) (string, bool) {
+		asked = level
+		if level == "standard" && format == "mp3" {
+			return cached, true
+		}
+		return "", false
+	}
+	t.Cleanup(func() { cachedDownload = previous })
+
+	if err := a.startDownloads([]pluginapi.Track{*track}, "lossless"); err != nil {
+		t.Fatalf("startDownloads: %v", err)
+	}
+	runQueued(a)
+
+	if got, err := os.ReadFile(filepath.Join(a.settings.DownloadDir, "歌手 - 歌名.mp3")); err != nil || !bytes.Equal(got, body) {
+		t.Fatalf("the song is %d bytes (%v), want the %d the cache holds", len(got), err, len(body))
+	}
+	if asked != "standard" {
+		t.Fatalf("the cache was asked for %q, want the level served", asked)
+	}
+}
+
+// A platform that serves nothing fails saying why there is nothing to fetch,
+// which is never a complaint about the level asked for.
+func TestDownloadSaysWhyNothingCame(t *testing.T) {
+	inlinePosts(t)
+	a, track := downloadApp(downloadAdapter{streams: streamAtLevels(map[string]string{}, 0)})
+	a.settings.DownloadDir = t.TempDir()
+
+	if err := a.startDownloads([]pluginapi.Track{*track}, "lossless"); err != nil {
+		t.Fatalf("startDownloads: %v", err)
+	}
+	runQueued(a)
+
+	items := a.downloads.snapshot()
+	if len(items) != 1 || items[0].Phase != protocol.TaskFailed || items[0].Message != downloadNotServed {
+		t.Fatalf("the download is %+v, want it failed saying %q", items, downloadNotServed)
+	}
+
+	// A song the listener may not play at all says that instead.
+	blocked := *track
+	blocked.Privilege = &pluginapi.Privilege{St: 0, Pl: 0}
+	if err := a.startDownloads([]pluginapi.Track{blocked}, "lossless"); err != nil {
+		t.Fatalf("startDownloads: %v", err)
+	}
+	runQueued(a)
+	if items := a.downloads.snapshot(); len(items) != 2 || items[0].Message != downloadNeedsMembership {
+		t.Fatalf("the unplayable song is %+v, want it failed saying %q", items, downloadNeedsMembership)
+	}
+}

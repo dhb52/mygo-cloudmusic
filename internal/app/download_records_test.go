@@ -6,22 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/waygu-music-plugin/sdk/pluginapi"
 	"github.com/waygu-music-plugin/sdk/protocol"
 )
-
-// keptFile is a file the records can point at.
-func keptFile(t *testing.T, dir string) string {
-	t.Helper()
-	path := filepath.Join(dir, "歌手 - 歌名.flac")
-	if err := os.WriteFile(path, []byte("audio"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
 
 // A song the listener keeps is remembered where the settings are, is known
 // again after a restart, and says so when its file goes away.
@@ -126,41 +115,6 @@ func latestMessage(t *testing.T, a *app) string {
 		t.Fatal("no downloads are listed")
 	}
 	return newest.Message
-}
-
-// A song the listener keeps, or is already getting, has no level on offer in
-// the dialog: the reminder is where they would pick one.
-func TestDownloadOptionsRemindOfWhatIsKeptOrComing(t *testing.T) {
-	a, track := downloadApp(downloadAdapter{streams: streamAtLevels(map[string]string{"standard": "standard"}, 100)})
-	key := downloadRecordKey{platform: "test-platform", ref: "song-ref"}
-	a.downloads.records.remember(downloadRecord{
-		Platform: key.platform, Ref: key.ref, Song: "歌名", Level: "lossless",
-		Path: keptFile(t, t.TempDir()), Size: 5, At: time.Now(),
-	})
-
-	options := a.downloadOptions(context.Background(), track)
-	if len(options) != len(pluginapi.Levels) {
-		t.Fatalf("the probe answered %d levels, want every one refused", len(options))
-	}
-	for _, option := range options {
-		if option.option.Available || option.option.Reason != downloadHeld {
-			t.Fatalf("level %q is %+v, want it refused as kept already", option.option.Level, option.option)
-		}
-	}
-
-	// A song that is on its way says that instead.
-	a.downloads.records.clear()
-	a.downloads.options.forgetKey(downloadOptionKey{platform: key.platform, ref: key.ref})
-	if err := a.startDownloads([]pluginapi.Track{*track}, "standard"); err != nil {
-		t.Fatalf("startDownloads: %v", err)
-	}
-	defer a.cancelAllDownloads()
-	options = a.downloadOptions(context.Background(), track)
-	for _, option := range options {
-		if option.option.Available || option.option.Reason != downloadAlreadyRunning {
-			t.Fatalf("level %q is %+v, want it refused as on its way", option.option.Level, option.option)
-		}
-	}
 }
 
 // Everything waiting is shown, not only the song being fetched.

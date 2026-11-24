@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/waygu-music-plugin/sdk/bridge"
 	"github.com/waygu-music-plugin/sdk/pluginapi"
@@ -49,34 +48,8 @@ func TestDownloadActionQueuesAndFetches(t *testing.T) {
 	}
 }
 
-// The probe a plugin asks for answers under the token it sent it with.
-func TestDownloadOptionsAnswerByToken(t *testing.T) {
-	inlinePosts(t)
-	a, track := downloadApp(downloadAdapter{streams: streamAtLevels(map[string]string{"standard": "standard"}, 100)})
-	a.settings.DownloadDir = t.TempDir()
-	call := downloadRPC(t, a)
-
-	if err := call(protocol.HostRequestDownloadOptions, PluginHostCall{Tracks: []pluginapi.Track{*track}, Text: "token-1"}); err != nil {
-		t.Fatalf("download-options: %v", err)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		state := platformHost{a: a}.DesktopSettings()
-		if state.DownloadOptionsToken == "token-1" {
-			if len(state.DownloadOptions) == 0 {
-				t.Fatal("the token came back with no levels")
-			}
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("the probe never answered")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
-// A song of a platform that is not the one asking cannot be probed or
-// downloaded through its actions.
+// A song of a platform that is not the one asking cannot be downloaded
+// through its actions.
 func TestDownloadActionsKeepToTheCallingPlatform(t *testing.T) {
 	a, track := downloadApp(downloadAdapter{streams: streamAtLevels(map[string]string{"standard": "standard"}, 100)})
 	a.settings.DownloadDir = t.TempDir()
@@ -84,11 +57,9 @@ func TestDownloadActionsKeepToTheCallingPlatform(t *testing.T) {
 	other.Source = "another-platform"
 	call := downloadRPC(t, a)
 
-	for _, action := range []string{protocol.HostRequestDownloadOptions, protocol.HostDownload} {
-		in := PluginHostCall{Tracks: []pluginapi.Track{other}, Level: "standard", Text: "token"}
-		if err := call(action, in); err == nil {
-			t.Fatalf("%s accepted another platform's song", action)
-		}
+	in := PluginHostCall{Tracks: []pluginapi.Track{other}, Level: "standard"}
+	if err := call(protocol.HostDownload, in); err == nil {
+		t.Fatal("download accepted another platform's song")
 	}
 	if err := call(protocol.HostDownload, PluginHostCall{Tracks: []pluginapi.Track{*track, other}, Level: "standard"}); err == nil {
 		t.Fatal("download accepted a batch with another platform's song")

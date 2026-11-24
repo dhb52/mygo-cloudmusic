@@ -1,8 +1,6 @@
 package app
 
 import (
-	"context"
-
 	"github.com/egoist/mygo"
 	"github.com/waygu-music-plugin/sdk/pluginapi"
 	"github.com/waygu-music-plugin/sdk/protocol"
@@ -39,7 +37,6 @@ func (h platformHost) DesktopSettings() pluginapi.DesktopSettings {
 	if dir, err := a.downloadDir(); err == nil {
 		state.DownloadDir = dir
 	}
-	state.DownloadOptions, state.DownloadOptionsToken = a.downloads.optionSnapshot()
 	if a.updates {
 		state.UpdateChecks, state.UpdateDownloads = updateChecks(), updateDownloads()
 		state.LastUpdateCheck = lastUpdateCheck()
@@ -141,31 +138,6 @@ func (a *app) applyDesktopPreferences(p pluginapi.DesktopPreferences) error {
 	}
 	a.desktopTasksChanged()
 	return nil
-}
-
-// RequestDownloadOptions answers, with its token, what one song may be
-// downloaded as. The platform is asked off the application thread, so that
-// the interface is not held up by it.
-func (h platformHost) RequestDownloadOptions(track pluginapi.Track, token string) {
-	if !h.canWrite() {
-		return
-	}
-	a := h.a
-	ctx, guard := h.authorization()
-	if ctx == nil {
-		ctx = context.Background()
-		guard = func() bool { return true }
-	}
-	go func() {
-		options := a.downloadOptions(ctx, &track)
-		if !guard() {
-			return
-		}
-		postDesktopTask(a, func() {
-			a.downloads.setOptions(token, options)
-			a.desktopTasksChanged()
-		})
-	}()
 }
 
 // Download queues the songs the listener chose, at the level they chose.

@@ -228,11 +228,6 @@ func (r pluginReverse) apply(in PluginHostCall, reply *PluginHostReply) error {
 			return protocol.Failure{Code: "unknown-task"}
 		}
 		return reply.AcceptTask(task, nil)
-	case protocol.HostRequestDownloadOptions:
-		if len(in.Tracks) != 1 || !a.processOwnsTracks(in.Tracks) {
-			return platformrpc.Failure{Code: "invalid-download"}
-		}
-		h.RequestDownloadOptions(in.Tracks[0], in.Text)
 	case protocol.HostDownload:
 		if len(in.Tracks) == 0 || !a.processOwnsTracks(in.Tracks) {
 			return platformrpc.Failure{Code: "invalid-download"}

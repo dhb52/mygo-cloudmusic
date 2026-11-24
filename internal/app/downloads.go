@@ -34,6 +34,22 @@ const (
 	maxDownloadTracks = 8192
 )
 
+// What a download says when it is not fetched: whether it may be had at
+// all, or is already there.
+const (
+	// downloadNeedsMembership is what a song that may not be played at
+	// all says.
+	downloadNeedsMembership = "需要登录或开通会员"
+	downloadNotServed       = "该曲目没有这个音质"
+	// downloadExists is what a song already in the download directory says.
+	downloadExists = "已存在"
+	// downloadAlreadyRunning is what a song already queued or being
+	// fetched says when it is asked for again.
+	downloadAlreadyRunning = "正在下载"
+	// downloadHeld is what a song the listener already keeps says.
+	downloadHeld = "已下载过了"
+)
+
 // downloadJob is one song's download, waiting or being fetched.
 type downloadJob struct {
 	item     pluginapi.DownloadItem
@@ -61,7 +77,6 @@ type finishedDownload struct {
 // which the settings window shows. The application thread changes it; the
 // worker posts what it finds.
 type downloads struct {
-	options *downloadOptionsCache
 	records *downloadRecords
 	wake    chan struct{}
 
@@ -71,10 +86,6 @@ type downloads struct {
 	running   *downloadJob
 	queued    []*downloadJob
 	recent    []finishedDownload
-	// token and optionList are the probe answered last, for the platform's
-	// dialog to pick up by its token.
-	token      string
-	optionList []pluginapi.DownloadOption
 	// left counts the songs of each batch that have not ended, and task is
 	// the desktop task the settings window shows for the batch.
 	left    map[uint64]int
@@ -85,7 +96,6 @@ type downloads struct {
 
 func newDownloads() *downloads {
 	return &downloads{
-		options: newDownloadOptionsCache(),
 		records: newDownloadRecords(),
 		wake:    make(chan struct{}, 1),
 		left:    map[uint64]int{},
@@ -151,9 +161,6 @@ func (a *app) startDownloads(tracks []pluginapi.Track, level string) error {
 			return fmt.Errorf("找不到 %s 所属的平台", tracks[i].Name)
 		}
 		plans = append(plans, planned{track: tracks[i], owner: platform, reason: a.downloadSkipReason(platform, &tracks[i])})
-		// What a song is on offer as is answered with whether the
-		// listener has it, which is about to change.
-		a.downloads.options.forgetKey(downloadOptionKey{platform: platform, ref: player.TrackRef(&tracks[i])})
 	}
 	dir, err := a.downloadDir()
 	if err != nil {
@@ -233,6 +240,9 @@ func (a *app) runDownload(job *downloadJob, ctx context.Context, cancel context.
 		a.finishDownload(job, downloadPhase(ctx, protocol.TaskFailed), downloadReason(ctx, reason))
 		return
 	}
+	// The platform may serve a level below the one asked for; the listener
+	// sees what really came in.
+	postDesktopTask(a, func() { a.downloads.setLevel(job, stream.Level) })
 	target, err := player.ReserveTarget(job.dir, &job.track, stream.Type, stream.Size)
 	if err != nil {
 		a.finishDownload(job, downloadPhase(ctx, protocol.TaskFailed), downloadReason(ctx, err.Error()))
@@ -251,7 +261,7 @@ func (a *app) runDownload(job *downloadJob, ctx context.Context, cancel context.
 		lastPosted = done
 		postDesktopTask(a, func() { a.downloads.setProgress(job, done, total) })
 	}
-	if path, ok := cachedDownload(a.pl.Cache, job.platform, &job.track, job.item.Level, stream.Type); ok {
+	if path, ok := cachedDownload(a.pl.Cache, job.platform, &job.track, stream.Level, stream.Type); ok {
 		_, err = player.CopyFile(path, target.Path)
 	} else {
 		_, err = player.DownloadFile(ctx, stream, target.Path, progress)
@@ -266,6 +276,36 @@ func (a *app) runDownload(job *downloadJob, ctx context.Context, cancel context.
 	}
 	a.writeDownloadSidecars(ctx, &job.track, target)
 	a.finishDownloadAt(job, protocol.TaskSucceeded, "", target.Path)
+}
+
+// downloadStream resolves the level one song is fetched at. The level asked
+// for is only a request: what the platform serves below it is what comes in.
+func (a *app) downloadStream(ctx context.Context, tr *pluginapi.Track, level string) (*pluginapi.Stream, string) {
+	stream, err := a.pl.ResolveStream(ctx, tr, level)
+	if err != nil || stream == nil || stream.URL == "" {
+		return nil, a.downloadRefusal(tr, err)
+	}
+	if stream.Level == "" {
+		// The platform did not name a level, so it served this one.
+		stream.Level = level
+	}
+	return stream, ""
+}
+
+// downloadRefusal says why the platform gave nothing for a level: a song
+// the listener may not play at all is a matter of signing in or of what
+// they pay for, otherwise the platform's own words, or the song having no
+// such level.
+func (a *app) downloadRefusal(tr *pluginapi.Track, err error) string {
+	if !tr.Playable() {
+		return downloadNeedsMembership
+	}
+	if err != nil {
+		if message := a.pl.StreamError(tr, err); message != "" {
+			return message
+		}
+	}
+	return downloadNotServed
 }
 
 // downloadPhase is how a song that could not be fetched ends: a listener
@@ -312,7 +352,6 @@ func (a *app) finishDownloadAt(job *downloadJob, phase protocol.TaskPhase, messa
 		skipped := phase == protocol.TaskSucceeded && item.Message != ""
 		a.downloads.finish(job, item, skipped)
 		a.recordDownload(job, item)
-		a.downloads.options.forgetKey(downloadOptionKey{platform: job.platform, ref: player.TrackRef(&job.track)})
 		// The batch that ends with this song says how it all went, which
 		// the listener would rather see than the last song alone.
 		summary, closed := a.closeDownloadBatch(job.item.Batch)
@@ -402,25 +441,6 @@ func (d *downloads) snapshot() []pluginapi.DownloadItem {
 		out = append(out, done.item)
 	}
 	return out
-}
-
-// optionSnapshot is the last probe answered, with the token it answers.
-func (d *downloads) optionSnapshot() ([]pluginapi.DownloadOption, string) {
-	if d == nil {
-		return nil, ""
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.optionList, d.token
-}
-
-// setOptions publishes the answer to one probe, in the shape the plugin
-// reads, once.
-func (d *downloads) setOptions(token string, options []downloadOption) {
-	list := downloadOptionList(options)
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.token, d.optionList = token, list
 }
 
 // openBatch starts a batch of downloads that share one desktop task.
@@ -532,6 +552,17 @@ func (d *downloads) setProgress(job *downloadJob, done, total int64) {
 		return
 	}
 	job.item.Done, job.item.Total = done, total
+}
+
+// setLevel records the level the platform really serves, which may be below
+// the one asked for.
+func (d *downloads) setLevel(job *downloadJob, level string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.running != job {
+		return
+	}
+	job.item.Level = level
 }
 
 // finish records one song's download among the ones shown, and gives the
